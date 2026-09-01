@@ -284,3 +284,20 @@ pre.setup, pre.commit-body, pre.setup { background: var(--gs-surface-sunken); pa
 .pl.commentable:hover { outline: 1px solid var(--gs-blue); outline-offset: -1px; }
 .inline-form { margin: 4px 14px; }
 button.good { border-color: var(--gs-good-fg); color: var(--gs-good-fg); background: transparent; }
+
+/* ===== issues / notifications / activity ===== */
+.label-chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 100px; margin-left: 6px; }
+.issue-layout { display: grid; grid-template-columns: 1fr 240px; gap: 16px; align-items: start; }
+.issue-side .card { padding: 12px 14px; }
+.issue-side h3 { margin: 0 0 6px; }
+.comment-card .markdown, .card .markdown { padding: 12px 0 0; }
+.event-line { padding: 6px 14px; font-size: 13px; border-left: 2px solid var(--gs-border); margin-left: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.notif.read { opacity: .55; }
+.notif .clip, .feed-row { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 5px; border-radius: 100px;
+  background: var(--gs-danger); color: #fff; font-size: 11px; text-align: center; }
+.inbox-link { position: relative; }
+.feed { display: flex; flex-direction: column; gap: 4px; }
+.feed-row { font-size: 13px; }
+@media (max-width: 720px) { .issue-layout { grid-template-columns: 1fr; } }

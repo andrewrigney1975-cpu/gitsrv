@@ -36,6 +36,9 @@ services:
       GitSrv__InternalToken: ${INTERNAL_TOKEN:?INTERNAL_TOKEN must be set in .env}
       GitSrv__MaxPushBytes: "536870912"
       GitSrv__RunMigrationsOnStartup: "true"
+      Smtp__Host: "mail"
+      Smtp__Port: "1025"
+      Smtp__From: "gitsrv@localhost"
       App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
@@ -49,6 +52,16 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+  # Catch-all SMTP sink for local/QA — nothing leaves the host. Web UI on :8025.
+  mail:
+    image: axllent/mailpit:latest
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "${MAIL_UI_PORT:-8025}:8025"
     restart: unless-stopped
 
   web:

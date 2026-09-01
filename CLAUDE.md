@@ -68,6 +68,23 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   Read (anon on public); comments/reviews need Triage; create/merge need Write.
 - Web: `views/pulls.js`. Cross-fork PRs are not implemented (no fork feature yet).
 
+## Issues & collaboration (Phase 5)
+
+- Issues + PRs draw from one per-repo sequence: `Data/RepoNumbers.NextAsync` (table
+  `repo_number_seq`, renamed from `repo_pr_counters` in migration 005).
+- `Collab/IssueService.cs` — issues, labels, milestones, assignees, timeline events, and
+  `LinkAndMaybeCloseAsync` (called from `PullRequestService` on create — link only — and on merge —
+  link + close). `Collab/NotificationService.cs` — inbox + `@mention` / watcher resolution.
+  `Collab/ActivityService.cs` — repo/org/user feeds. `Collab/EmailWorker.cs` — `BackgroundService`
+  polling unsent notifications, one digest per user per poll, SMTP via `Smtp:*` config (no-ops with
+  a log line when unset).
+- `Git/TextRefs.cs` + `MarkdownRenderer.ToCommentHtml` — `#N` / `@user` extraction and linkifying
+  (linkify runs on text nodes only, never inside tags).
+- Endpoints: `Endpoints/IssueEndpoints.cs` (`/issues`, `/labels`, `/milestones`, `/watch`,
+  `/activity` under the repo), `Endpoints/NotificationEndpoints.cs` (`/api/notifications`),
+  `ActivityEndpoints` (`/api/user/feed`, `/api/orgs/{slug}/activity`).
+- `mail` service (mailpit) in compose; UI on `MAIL_UI_PORT` (default 8025).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

@@ -1,5 +1,6 @@
 import { session } from '../session.js';
-import { el } from '../ui.js';
+import { api } from '../api.js';
+import { el, timeAgo } from '../ui.js';
 
 export function renderDashboard() {
   const wrap = el('div', { class: 'stack' });
@@ -24,5 +25,16 @@ export function renderDashboard() {
       el('span', { class: `pill role-${o.role}` }, o.role)));
   }
   wrap.append(grid);
+
+  const feed = el('div', { class: 'card' }, el('h2', {}, 'Recent activity'), el('div', { class: 'muted' }, 'Loading…'));
+  wrap.append(feed);
+  api.get('/api/user/feed').then((items) => {
+    feed.replaceChildren(el('h2', {}, 'Recent activity'),
+      items.length ? el('div', { class: 'feed' }, ...items.map((a) => el('div', { class: 'feed-row muted' },
+        a.orgSlug && a.repoSlug ? el('a', { href: `#/o/${a.orgSlug}/${a.repoSlug}` }, `${a.orgSlug}/${a.repoSlug}`) : '',
+        ` ${a.summary} · ${timeAgo(a.createdAt)}`)))
+        : el('div', { class: 'muted' }, 'Nothing yet.'));
+  }).catch(() => feed.replaceChildren(el('h2', {}, 'Recent activity'), el('div', { class: 'muted' }, 'Unavailable.')));
+
   return wrap;
 }

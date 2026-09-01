@@ -31,6 +31,7 @@ public sealed record MergeStatus(bool Mergeable, bool HasConflicts, IReadOnlyLis
     bool AllowMerge, bool AllowSquash, bool AllowRebase);
 
 public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseService browse, PrMergeService merger,
+    Collab.IssueService issues, Collab.ActivityService activity, Collab.NotificationService notify,
     ILogger<PullRequestService> logger)
 {
     // One merge/sync at a time per repo.
@@ -38,13 +39,28 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
     private static SemaphoreSlim Lock(long repoId) => RepoLocks.GetOrAdd(repoId, _ => new SemaphoreSlim(1, 1));
 
     private sealed record RepoMergeCfg(bool AllowMergeCommit, bool AllowSquash, bool AllowRebase, bool DeleteBranchOnMerge);
+    private sealed record OrgRepoSlugs(string OrgSlug, string RepoSlug);
+
+    private static string CommitMessages(string repoDir, PrRow pr)
+    {
+        try
+        {
+            using var repo = new Repository(repoDir);
+            var head = repo.Lookup<Commit>(pr.HeadSha);
+            var mb = head is null ? null : repo.ObjectDatabase.FindMergeBase(repo.Branches[pr.BaseBranch]?.Tip ?? head, head);
+            if (head is null) return "";
+            var filter = new CommitFilter { IncludeReachableFrom = head, ExcludeReachableFrom = mb };
+            return string.Join("\n", repo.Commits.QueryBy(filter).Take(100).Select(c => c.Message));
+        }
+        catch { return ""; }
+    }
     private sealed record PrRow(long Id, int Number, string Title, string Body, string State, bool IsDraft,
         string BaseBranch, string HeadBranch, string HeadSha, string? MergeSha, string? MergeMethod,
         long CreatedBy, long? MergedBy, DateTime CreatedAt, DateTime? MergedAt, DateTime? ClosedAt);
 
     // ---- create ----
 
-    public async Task<int> CreateAsync(long repoId, string repoDir, long userId,
+    public async Task<int> CreateAsync(long repoId, string orgSlug, string repoSlug, string repoDir, long userId, string username,
         string title, string body, string baseBranch, string headBranch, bool isDraft, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(title)) throw new ValidationException("A title is required.");
@@ -64,28 +80,29 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
         }
         if (ahead == 0) throw new ValidationException("There is nothing to compare — the head branch has no commits the base is missing.");
 
-        return await db.InTransactionAsync(async (conn, tx) =>
+        var number = await db.InTransactionAsync(async (conn, tx) =>
         {
             var existing = await conn.QuerySingleOrDefaultAsync<int?>(
                 "SELECT number FROM pull_requests WHERE repo_id = @repoId AND head_branch = @headBranch AND base_branch = @baseBranch AND state = 'open'",
                 new { repoId, headBranch, baseBranch }, tx);
             if (existing is not null) throw new ValidationException($"PR #{existing} is already open for {headBranch} → {baseBranch}.");
 
+            var n = await Data.RepoNumbers.NextAsync(conn, tx, repoId);
             await conn.ExecuteAsync(
-                "INSERT INTO repo_pr_counters (repo_id, last_number) VALUES (@repoId, 0) ON CONFLICT DO NOTHING", new { repoId }, tx);
-            var number = await conn.ExecuteScalarAsync<int>(
-                "UPDATE repo_pr_counters SET last_number = last_number + 1 WHERE repo_id = @repoId RETURNING last_number", new { repoId }, tx);
-
-            var prId = await conn.ExecuteScalarAsync<long>(
                 """
                 INSERT INTO pull_requests (repo_id, number, title, body, is_draft, base_branch, head_branch, head_sha, created_by)
-                VALUES (@repoId, @number, @title, @body, @isDraft, @baseBranch, @headBranch, @headSha, @userId)
-                RETURNING id
+                VALUES (@repoId, @n, @title, @body, @isDraft, @baseBranch, @headBranch, @headSha, @userId)
                 """,
-                new { repoId, number, title = title.Trim(), body = body?.Trim() ?? "", isDraft, baseBranch, headBranch, headSha, userId }, tx);
-            _ = prId;
-            return number;
+                new { repoId, n, title = title.Trim(), body = body?.Trim() ?? "", isDraft, baseBranch, headBranch, headSha, userId }, tx);
+            return n;
         }, ct);
+
+        await activity.RecordAsync(userId, null, repoId, "pr_opened", number, $"{username} opened PR #{number}: {title.Trim()}", ct);
+        await notify.EnsureWatchAsync(repoId, userId, "auto", ct);
+        var mentioned = await notify.ResolveMentionsAsync($"{title} {body}", ct);
+        await notify.NotifyAsync(mentioned, userId, repoId, "pull", number, title.Trim(), "mention", body ?? "", $"#/o/{orgSlug}/{repoSlug}/pulls/{number}", ct);
+        await issues.LinkAndMaybeCloseAsync(repoId, orgSlug, repoSlug, "pr", $"#{number}", $"{title} {body}", applyClosings: false, userId, username, ct);
+        return number;
     }
 
     // ---- read ----
@@ -348,6 +365,14 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
 
             // A merge into the base branch may satisfy other open PRs targeting it.
             await SyncAfterPushInternalAsync(conn2, repoId, repoDir, ct);
+
+            // Close referenced issues ("closes #N" in the PR body or its commits) and record activity.
+            var orgRepo = await conn2.QuerySingleAsync<OrgRepoSlugs>(
+                "SELECT o.slug AS OrgSlug, r.slug AS RepoSlug FROM repositories r JOIN organisations o ON o.id = r.org_id WHERE r.id = @repoId",
+                new { repoId });
+            var closingText = pr.Body + "\n" + CommitMessages(repoDir, pr);
+            await activity.RecordAsync(userId, null, repoId, "pr_merged", number, $"{username} merged PR #{number}: {pr.Title}", ct);
+            await issues.LinkAndMaybeCloseAsync(repoId, orgRepo.OrgSlug, orgRepo.RepoSlug, "pr", $"#{number}", closingText, applyClosings: true, userId, username, ct);
         }
         finally
         {

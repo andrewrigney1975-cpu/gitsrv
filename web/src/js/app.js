@@ -1,5 +1,6 @@
 import { route, setNotFound, startRouter, navigate, currentPath } from './router.js';
 import { session } from './session.js';
+import { api } from './api.js';
 import { el, clear } from './ui.js';
 import { initThemeToggle } from './features/theme.js';
 
@@ -14,6 +15,8 @@ import { renderRepoCode, renderRepoBlob, renderRepoBlame } from './views/repo.js
 import { renderRepoCommits, renderRepoCommit, renderRepoGraph } from './views/repo-history.js';
 import { renderRepoSettings } from './views/repo-settings.js';
 import { renderPullList, renderNewPull, renderPullDetail } from './views/pulls.js';
+import { renderIssueList, renderNewIssue, renderIssueDetail, renderLabels, renderMilestones } from './views/issues.js';
+import { renderInbox } from './views/inbox.js';
 
 initThemeToggle();
 
@@ -49,6 +52,12 @@ route('/o/:slug/:repo/commit/:sha', (ctx) => mount(renderRepoCommit(P(ctx).slug,
 route('/o/:slug/:repo/pulls/new', requireAuth((ctx) => mount(renderNewPull(P(ctx).slug, P(ctx).repo, ctx.query))));
 route('/o/:slug/:repo/pulls/:number', (ctx) => mount(renderPullDetail(P(ctx).slug, P(ctx).repo, ctx.params.number)));
 route('/o/:slug/:repo/pulls', (ctx) => mount(renderPullList(P(ctx).slug, P(ctx).repo, ctx.query)));
+route('/o/:slug/:repo/issues/new', requireAuth((ctx) => mount(renderNewIssue(P(ctx).slug, P(ctx).repo))));
+route('/o/:slug/:repo/issues/:number', (ctx) => mount(renderIssueDetail(P(ctx).slug, P(ctx).repo, ctx.params.number)));
+route('/o/:slug/:repo/issues', (ctx) => mount(renderIssueList(P(ctx).slug, P(ctx).repo, ctx.query)));
+route('/o/:slug/:repo/labels', requireAuth((ctx) => mount(renderLabels(P(ctx).slug, P(ctx).repo))));
+route('/o/:slug/:repo/milestones', requireAuth((ctx) => mount(renderMilestones(P(ctx).slug, P(ctx).repo))));
+route('/inbox', requireAuth((ctx) => mount(renderInbox(ctx.query))));
 route('/o/:slug/:repo/graph', (ctx) => mount(renderRepoGraph(P(ctx).slug, P(ctx).repo)));
 route('/o/:slug/:repo/settings', requireAuth((ctx) => mount(renderRepoSettings(P(ctx).slug, P(ctx).repo))));
 route('/o/:slug/:repo', (ctx) => mount(renderRepoCode(P(ctx).slug, P(ctx).repo, null, null)));
@@ -77,10 +86,15 @@ function renderChrome() {
   }
   nav.append(el('a', { href: '#/new', class: 'btn-link' }, '+ New org'));
 
+  const inbox = el('a', { href: '#/inbox', class: 'btn-link inbox-link', title: 'Notifications' }, 'Inbox');
   userMenu.append(
+    inbox,
     el('a', { href: '#/settings', class: 'btn-link', title: 'Settings' }, session.user.username),
     el('button', { onclick: async () => { await session.logout(); navigate('/login'); } }, 'Sign out'),
   );
+  api.get('/api/notifications/count').then((c) => {
+    if (c.unread > 0) inbox.append(el('span', { class: 'badge' }, String(c.unread)));
+  }).catch(() => {});
 }
 
 (async () => {

@@ -44,10 +44,11 @@ public static class PullRequestEndpoints
         });
 
         g.MapPost("/", async (string slug, string repoSlug, CreatePrRequest req,
-            CurrentUser cu, RepoBrowseService browse, PullRequestService prs, CancellationToken ct) =>
+            CurrentUser cu, RepoBrowseService browse, PullRequestService prs, AccountService accounts, CancellationToken ct) =>
         {
             var b = await Write(browse, slug, repoSlug, cu, ct);
-            var number = await prs.CreateAsync(b.RepoId, b.RepoDir, cu.RequireId(),
+            var user = (await accounts.GetAsync(cu.RequireId(), ct))!;
+            var number = await prs.CreateAsync(b.RepoId, b.OrgSlug, b.RepoSlug, b.RepoDir, user.Id, user.Username,
                 req.Title ?? "", req.Body ?? "", req.BaseBranch ?? "", req.HeadBranch ?? "", req.IsDraft, ct);
             return Results.Json(new { number }, statusCode: 201);
         });

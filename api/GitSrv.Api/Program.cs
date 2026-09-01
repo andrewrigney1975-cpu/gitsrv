@@ -76,7 +76,19 @@ builder.Services.AddScoped<GitAccessService>();
 builder.Services.AddScoped<RepoBrowseService>();
 builder.Services.AddSingleton<PrMergeService>();
 builder.Services.AddScoped<PullRequestService>();
+builder.Services.AddScoped<GitSrv.Api.Collab.NotificationService>();
+builder.Services.AddScoped<GitSrv.Api.Collab.ActivityService>();
+builder.Services.AddScoped<GitSrv.Api.Collab.IssueService>();
 builder.Services.AddScoped<GitHttpEndpoints.GitAuthResolver>();
+
+builder.Services.AddSingleton(new GitSrv.Api.Collab.EmailOptions
+{
+    Host = builder.Configuration["Smtp:Host"] ?? "",
+    Port = builder.Configuration.GetValue("Smtp:Port", 1025),
+    From = builder.Configuration["Smtp:From"] ?? "gitsrv@localhost",
+    BaseUrl = builder.Configuration["App:PublicBaseUrl"] ?? "http://localhost:8080",
+});
+builder.Services.AddHostedService<GitSrv.Api.Collab.EmailWorker>();
 
 builder.Services.AddHealthChecks();
 
@@ -114,7 +126,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 4,
+    phase = 5,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -126,6 +138,9 @@ app.MapOrgs();
 app.MapRepos();
 app.MapRepoBrowse();
 app.MapPullRequests();
+app.MapIssues();
+app.MapNotifications();
+app.MapActivity();
 app.MapInternalSsh(builder.Configuration["GitSrv:InternalToken"] ?? "");
 
 // Git Smart-HTTP transport at the clone-URL root. Mapped last so its greedy /{org}/{repo}/… routes

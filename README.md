@@ -11,6 +11,14 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 5 — issues, notifications, activity.** Issues share a per-repo number space with PRs, so
+`#5` is unambiguous. Labels, milestones, assignees, comments, a state timeline, and cross-references
+from PRs/commits (`closes #N` in a merged PR closes the issue). Shared Markdown pipeline: task
+lists, tables, emoji, and `#N` / `@user` autolinking. Notifications (mention / assign / author /
+watch / comment) land in an in-app inbox with an unread badge; a background worker delivers email
+digests over SMTP (a `mailpit` container catches them in QA). Activity feeds per repo, per org, and
+on the personal dashboard.
+
 **Phase 4 — pull requests.** Same-repo cross-branch PRs with a libgit2 three-way compare
 (merge-base, ahead/behind, conflict detection on trees, rename detection). Inline review threads
 with pending comments that publish on review submission; review states (comment / approve / request
