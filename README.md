@@ -11,6 +11,15 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 8 — package registry.** Org-scoped registries behind a storage abstraction
+(`IArtifactStore`, local-volume driver; S3 slots in later): an **npm** registry
+(`.npmrc` → `{base}/npm/{org}/`), an **OCI/Docker** registry (`/v2/`, blob upload flow, manifests,
+tags — `docker push {host}/{org}/{image}`), and a **generic** file registry. Auth via personal
+access tokens; per-package visibility (public/internal/private) overriding the default. Web UI:
+per-org package list with storage usage, and a package page with versions, files and copy-paste
+install instructions. NuGet/PyPI/Maven/Cargo/etc. follow the same pattern and can be added
+incrementally.
+
 **Phase 7 — GitSrv Actions (CI/CD).** A GitHub-Actions-flavoured subset: `.gitsrv/workflows/*.yml`
 with `on` (push / pull_request + branch filters), `jobs` with `runs-on` / `container` / `needs` /
 `env`, `strategy.matrix`, and `run` / `uses` (checkout) steps. Push and pull_request events dispatch

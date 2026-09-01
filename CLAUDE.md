@@ -118,6 +118,18 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   `branch_protections.require_status_checks` (all statuses on head sha must be `success`).
 - Endpoints: `Endpoints/ActionsEndpoints.cs` (+ `RunnerEndpoints`).
 
+## Package registry (Phase 8)
+
+- `Packages/ArtifactStore.cs` — `IArtifactStore` + `LocalArtifactStore` (content under
+  `{ArtifactRoot}` = `{RepositoryRoot}/_packages`). `Packages/PackageService.cs` — shared
+  `packages`/`package_versions`/`package_files` model, registry auth (PAT bearer or Basic),
+  visibility gate.
+- `Endpoints/NpmRegistryEndpoints.cs` (`/npm/{org}/…`), `Endpoints/OciRegistryEndpoints.cs`
+  (`/v2/…`, `{name}` = `{org}/{image}`, `oci_tags` + `oci_uploads`), `Endpoints/PackageEndpoints.cs`
+  (`/generic/…` + `/api/orgs/{slug}/packages` browse). nginx proxies `~ ^/(v2|npm|generic)`
+  with `Host $http_host` (npm tarball URLs need the port).
+- Web: `views/packages.js`, Packages tab in `orgNav`.
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

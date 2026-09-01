@@ -21,6 +21,7 @@ export function orgNav(slug, myRole) {
   const canAdmin = myRole === 'owner' || myRole === 'admin' || myRole === 'site-admin';
   return el('nav', { class: 'sub-nav' },
     tab(`/o/${slug}`, 'Repositories'),
+    tab(`/o/${slug}/packages`, 'Packages'),
     tab(`/o/${slug}/people`, 'People'),
     tab(`/o/${slug}/teams`, 'Teams'),
     canAdmin && el('span', { class: 'muted tab-hint' }, `you are ${myRole}`));
