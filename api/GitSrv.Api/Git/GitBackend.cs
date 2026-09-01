@@ -8,8 +8,14 @@ namespace GitSrv.Api.Git;
 /// Runs <c>git upload-pack</c> / <c>git receive-pack</c> in Smart-HTTP stateless-RPC mode and
 /// streams the result straight to the response. No buffering of pack data in memory.
 /// </summary>
-public sealed class GitBackend(ILogger<GitBackend> logger)
+public sealed class GitBackend(ILogger<GitBackend> logger, IConfiguration config)
 {
+    // Bound concurrent upload-pack (clone/fetch) — the memory-heavy operation — so a burst of
+    // clones can't exhaust a small host. Configurable via GitSrv:MaxConcurrentFetches (0 = unbounded).
+    private readonly SemaphoreSlim? _fetchGate =
+        config.GetValue("GitSrv:MaxConcurrentFetches", Environment.ProcessorCount * 2) is > 0 and var n
+            ? new SemaphoreSlim(n, n) : null;
+
     public static bool IsValidService(string? service) =>
         service is "git-upload-pack" or "git-receive-pack";
 
@@ -41,7 +47,16 @@ public sealed class GitBackend(ILogger<GitBackend> logger)
             input = new GZipStream(input, CompressionMode.Decompress);
 
         var verb = service["git-".Length..];
-        await RunAsync(verb, ["--stateless-rpc", repoDir], gitProtocol, input, ctx.Response.Body, ct, hookEnv);
+        var gate = verb == "upload-pack" ? _fetchGate : null;
+        if (gate is not null) await gate.WaitAsync(ct);
+        try
+        {
+            await RunAsync(verb, ["--stateless-rpc", repoDir], gitProtocol, input, ctx.Response.Body, ct, hookEnv);
+        }
+        finally
+        {
+            gate?.Release();
+        }
     }
 
     private async Task RunAsync(string verb, string[] args, string? gitProtocol, Stream? input, Stream output, CancellationToken ct,

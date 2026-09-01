@@ -143,6 +143,21 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   an in-process HTTP server reached via `host.docker.internal` (compose `extra_hosts`).
 - Web: `views/org-settings.js` (org Settings tab).
 
+## Performance (Phase 10)
+
+- `Git/GitMaintenanceWorker.cs` — `BackgroundService`, every 15 min, incremental repack +
+  commit-graph + MIDX on repos where `pushed_at > last_maintained_at`.
+- `GitStorage.EnsureAsync` sets pack config (bitmaps, commit-graph, MIDX, allowFilter).
+- `GitBackend` gates `upload-pack` with a `SemaphoreSlim` (`GitSrv:MaxConcurrentFetches`,
+  default 2×CPU).
+- `RepoBrowseEndpoints`: `IMemoryCache` for rendered README (`md:{blobSha}`), `ConditionalHit`
+  helper sets ETag + Cache-Control and returns 304.
+- `IssueService.ListAsync` fetches labels/assignees for the whole page in two `= ANY(@ids)`
+  queries, not per-row.
+- Web `app.js` — only auth/dashboard/repo-code eager; the rest via `lazy(path, name)` →
+  dynamic `import()`.
+- Opt-in load probe: `contract-tests/load.test.mjs` (`GITSRV_LOAD=1`).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

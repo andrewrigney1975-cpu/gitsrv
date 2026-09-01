@@ -30,7 +30,7 @@ public sealed record MergeStatus(bool Mergeable, bool HasConflicts, IReadOnlyLis
     bool BlockedByReview, bool BlockedByDraft, int Approvals, int ChangesRequested,
     bool AllowMerge, bool AllowSquash, bool AllowRebase);
 
-public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseService browse, PrMergeService merger,
+public sealed class PullRequestService(Db db, RepoBrowseService browse, PrMergeService merger,
     Collab.IssueService issues, Collab.ActivityService activity, Collab.NotificationService notify,
     Actions.ActionsService actions, Integrations.EnklrService enklr, IConfiguration config, ILogger<PullRequestService> logger)
 {

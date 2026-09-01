@@ -42,9 +42,21 @@ public sealed class GitStorage(GitStorageOptions options, ILogger<GitStorage> lo
         var branch = string.IsNullOrWhiteSpace(defaultBranch) ? "main" : defaultBranch;
 
         await RunAsync("git", ["init", "--bare", $"--initial-branch={branch}", path], null, ct);
-        // Allow partial-clone filters (harmless now, used from Phase 10) and keep gc quiet on push.
-        await RunAsync("git", ["-C", path, "config", "uploadpack.allowFilter", "true"], null, ct);
-        await RunAsync("git", ["-C", path, "config", "receive.denyNonFastForwards", "false"], null, ct);
+        // Perf: partial-clone filters, reachability bitmaps, commit-graph on write, MIDX bitmaps.
+        foreach (var (k, v) in new[]
+        {
+            ("uploadpack.allowFilter", "true"),
+            ("uploadpack.allowAnySHA1InWant", "true"),
+            ("receive.denyNonFastForwards", "false"),
+            ("repack.writeBitmaps", "true"),
+            ("pack.writeReverseIndex", "true"),
+            ("fetch.writeCommitGraph", "true"),
+            ("core.commitGraph", "true"),
+            ("gc.writeCommitGraph", "true"),
+        })
+        {
+            await RunAsync("git", ["-C", path, "config", k, v], null, ct);
+        }
         WriteHooks(path);
         logger.LogInformation("Initialised bare repo {Path}", path);
     }

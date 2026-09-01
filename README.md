@@ -11,6 +11,20 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 10 — performance & scale hardening.** Rendered-Markdown cache (content-hashed,
+`IMemoryCache`, 64 MiB cap); strong ETag + `Cache-Control` on blob/raw reads (304 on match).
+Bare repos are created with reachability bitmaps, commit-graph and MIDX enabled; a
+`GitMaintenanceWorker` background service runs incremental repack / commit-graph / multi-pack-index
+on repos pushed since last maintained. Bounded concurrent `upload-pack`
+(`GitSrv:MaxConcurrentFetches`). N+1 sweep on the issue list; composite indexes for the PR-sync,
+checks-gate and inbox hot paths (migration 010). Route-level code splitting — only core views load
+eagerly, the rest are dynamic `import()`.
+
+**Load budgets** (verified on Docker Desktop with `GITSRV_LOAD=1`): 15 concurrent clones of a
+40-commit repo p95 &lt; 15 s (measured ~0.5 s); 75 concurrent browse reads p95 &lt; 2 s
+(measured ~0.2 s). Raspberry Pi 3 verification is a manual step — the profile is
+`contract-tests/load.test.mjs`.
+
 **Phase 9 — Enklr.app integration.** GitSrv's side of the connector: per-org connection to an
 Enklr workspace; `ENK-123` card references in commits / branches / PRs are discovered, linked, and
 pushed to Enklr (`POST {base}/api/gitsrv/refs` and `/events`, bearer-authenticated) so a card shows

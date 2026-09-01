@@ -25,6 +25,8 @@ public sealed class IssueService(Db db, NotificationService notify, ActivityServ
     private sealed record ListRow(long Id, int Number, string Title, string State, string AuthorUsername,
         DateTime CreatedAt, DateTime UpdatedAt, int Comments, string? Milestone);
     private sealed record CommentRow(long Id, string AuthorUsername, string Body, DateTime CreatedAt, DateTime UpdatedAt);
+    private sealed record LabelWithIssue(long IssueId, long Id, string Name, string Color, string Description);
+    private sealed record AssigneeWithIssue(long IssueId, string Username);
 
     // ---- issues ----
 
@@ -80,14 +82,18 @@ public sealed class IssueService(Db db, NotificationService notify, ActivityServ
             ORDER BY i.number DESC
             """, new { repoId, label, assignee, milestoneId })).ToList();
 
-        var result = new List<IssueListItem>();
-        foreach (var r in rows)
-        {
-            var labels = (await conn.QueryAsync<Label>("SELECT l.id, l.name, l.color, l.description FROM issue_labels il JOIN labels l ON l.id = il.label_id WHERE il.issue_id = @id", new { r.Id })).ToList();
-            var assignees = (await conn.QueryAsync<string>("SELECT u.username FROM issue_assignees ia JOIN users u ON u.id = ia.user_id WHERE ia.issue_id = @id", new { r.Id })).ToList();
-            result.Add(new IssueListItem(r.Number, r.Title, r.State, r.AuthorUsername, r.CreatedAt, r.UpdatedAt, r.Comments, labels, assignees, r.Milestone));
-        }
-        return result;
+        if (rows.Count == 0) return [];
+        var ids = rows.Select(r => r.Id).ToArray();
+
+        var labelRows = (await conn.QueryAsync<LabelWithIssue>(
+            "SELECT il.issue_id AS IssueId, l.id, l.name, l.color, l.description FROM issue_labels il JOIN labels l ON l.id = il.label_id WHERE il.issue_id = ANY(@ids)",
+            new { ids })).ToLookup(x => x.IssueId, x => new Label(x.Id, x.Name, x.Color, x.Description));
+        var assigneeRows = (await conn.QueryAsync<AssigneeWithIssue>(
+            "SELECT ia.issue_id AS IssueId, u.username FROM issue_assignees ia JOIN users u ON u.id = ia.user_id WHERE ia.issue_id = ANY(@ids)",
+            new { ids })).ToLookup(x => x.IssueId, x => x.Username);
+
+        return rows.Select(r => new IssueListItem(r.Number, r.Title, r.State, r.AuthorUsername, r.CreatedAt, r.UpdatedAt, r.Comments,
+            labelRows[r.Id].ToList(), assigneeRows[r.Id].ToList(), r.Milestone)).ToList();
     }
 
     public async Task<IssueDetail> GetAsync(long repoId, string orgSlug, string repoSlug, int number, CancellationToken ct)

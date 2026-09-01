@@ -135,14 +135,14 @@ public sealed class RepoReader : IDisposable
         return new BlobView(path, blob.Size, false, truncated, text, blob.Sha);
     }
 
-    public (Stream Content, long Size, string FileName) RawBlob(string refOrSha, string path)
+    public (Stream Content, long Size, string FileName, string Sha) RawBlob(string refOrSha, string path)
     {
         var commit = ResolveCommit(refOrSha);
         var entry = commit[path] ?? throw new NotFoundException($"File '{path}' not found.");
         if (entry.TargetType != TreeEntryTargetType.Blob)
             throw new NotFoundException("Not a file.");
         var blob = (Blob)entry.Target;
-        return (blob.GetContentStream(), blob.Size, Path.GetFileName(path));
+        return (blob.GetContentStream(), blob.Size, Path.GetFileName(path), blob.Sha);
     }
 
     public IReadOnlyList<CommitSummary> Log(string refOrSha, string? path, int skip, int take)

@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
+using System.Text;
 using GitSrv.Api.Auth;
 using GitSrv.Api.Authz;
 using GitSrv.Api.Git;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GitSrv.Api.Endpoints;
 
@@ -17,7 +20,7 @@ public static class RepoBrowseEndpoints
 
         // Repo home: refs + latest commit + README (rendered) + language bar, in one round trip.
         g.MapGet("/overview", async (string slug, string repoSlug, string? @ref, CurrentUser cu,
-            RepoBrowseService svc, CancellationToken ct) =>
+            RepoBrowseService svc, IMemoryCache cache, CancellationToken ct) =>
         {
             var b = await svc.ResolveAsync(slug, repoSlug, cu.UserId, ct);
             using var r = svc.Open(b);
@@ -37,10 +40,17 @@ public static class RepoBrowseEndpoints
                     if (blob.Text is not null)
                     {
                         readmeName = hit.Name;
-                        readmeHtml = hit.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || !hit.Name.Contains('.')
-                            ? MarkdownRenderer.ToHtml(blob.Text)
-                            : null;
-                        if (readmeHtml is null) readmeHtml = $"<pre>{System.Net.WebUtility.HtmlEncode(blob.Text)}</pre>";
+                        var isMarkdown = hit.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase) || !hit.Name.Contains('.');
+                        // Rendering is the main CPU cost of this endpoint — cache by content hash.
+                        var cacheKey = $"md:{blob.Sha}";
+                        readmeHtml = cache.GetOrCreate(cacheKey, e =>
+                        {
+                            e.SlidingExpiration = TimeSpan.FromMinutes(30);
+                            e.Size = blob.Text.Length;
+                            return isMarkdown
+                                ? MarkdownRenderer.ToHtml(blob.Text)
+                                : $"<pre>{System.Net.WebUtility.HtmlEncode(blob.Text)}</pre>";
+                        });
                     }
                     break;
                 }
@@ -73,20 +83,22 @@ public static class RepoBrowseEndpoints
         });
 
         g.MapGet("/blob/{ref}/{**path}", async (string slug, string repoSlug, string @ref, string path,
-            CurrentUser cu, RepoBrowseService svc, CancellationToken ct) =>
+            HttpContext ctx, CurrentUser cu, RepoBrowseService svc, CancellationToken ct) =>
         {
             var b = await svc.ResolveAsync(slug, repoSlug, cu.UserId, ct);
             using var r = svc.Open(b);
             var blob = r.Blob(@ref, path);
+            if (ConditionalHit(ctx, blob.Sha)) return Results.StatusCode(304);
             return Results.Json(new { blob, language = Languages.Detect(System.IO.Path.GetFileName(path)) });
         });
 
         g.MapGet("/raw/{ref}/{**path}", async (string slug, string repoSlug, string @ref, string path,
-            CurrentUser cu, RepoBrowseService svc, CancellationToken ct) =>
+            HttpContext ctx, CurrentUser cu, RepoBrowseService svc, CancellationToken ct) =>
         {
             var b = await svc.ResolveAsync(slug, repoSlug, cu.UserId, ct);
             using var r = svc.Open(b);
-            var (content, _, fileName) = r.RawBlob(@ref, path);
+            var (content, _, fileName, sha) = r.RawBlob(@ref, path);
+            if (ConditionalHit(ctx, sha)) { content.Dispose(); return Results.StatusCode(304); }
             // Force download as octet-stream so the browser never renders untrusted content inline.
             return Results.Stream(content, "application/octet-stream", fileDownloadName: fileName);
         });
@@ -125,6 +137,15 @@ public static class RepoBrowseEndpoints
             using var r = svc.Open(b);
             return Results.Json(r.Graph(Math.Clamp(limit ?? 120, 1, 400)));
         });
+    }
+
+    /// <summary>Sets a strong ETag + immutable Cache-Control and returns true if the client already has it.</summary>
+    private static bool ConditionalHit(HttpContext ctx, string contentKey)
+    {
+        var etag = "\"" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(contentKey)))[..16] + "\"";
+        ctx.Response.Headers.ETag = etag;
+        ctx.Response.Headers.CacheControl = "private, max-age=60";
+        return ctx.Request.Headers.IfNoneMatch.ToString() == etag;
     }
 
     private static IEnumerable<(string, long)> FlattenBlobs(RepoReader r, string @ref)
