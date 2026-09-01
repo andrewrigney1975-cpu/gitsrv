@@ -29,6 +29,11 @@ public sealed record BlameView(string Path, IReadOnlyList<string> Lines, IReadOn
 public sealed record GraphCommit(string Sha, string ShortSha, string Summary, PersonStamp Author,
     IReadOnlyList<string> Parents, int Lane, IReadOnlyList<int> ParentLanes, IReadOnlyList<string> Refs);
 
+public sealed record Comparison(
+    string BaseRef, string HeadRef, string BaseSha, string HeadSha, string? MergeBaseSha,
+    int Ahead, int Behind, bool Mergeable, IReadOnlyList<string> ConflictPaths,
+    IReadOnlyList<CommitSummary> Commits, IReadOnlyList<DiffFile> Files, int TotalAdded, int TotalDeleted);
+
 /// <summary>
 /// libgit2-backed read access to one bare repository. Cheap to construct; dispose per request.
 /// Everything here is read-only and safe for anonymous callers once the caller has cleared the
@@ -256,6 +261,62 @@ public sealed class RepoReader : IDisposable
                 refsBySha.TryGetValue(c.Sha, out var rs) ? rs : []));
         }
         return result;
+    }
+
+    public bool BranchExists(string name) => _repo.Branches[name] is not null;
+
+    public string? Tip(string branch) => _repo.Branches[branch]?.Tip?.Sha;
+
+    /// <summary>
+    /// Three-way comparison of <paramref name="headRef"/> against <paramref name="baseRef"/>: the
+    /// commits head adds since the merge base, the merge-base→head diff (what the PR changes), and
+    /// a conflict-free mergeability check computed on trees only (no working directory).
+    /// </summary>
+    public Comparison Compare(string baseRef, string headRef)
+    {
+        var baseCommit = ResolveCommit(baseRef);
+        var headCommit = ResolveCommit(headRef);
+        var mergeBase = _repo.ObjectDatabase.FindMergeBase(baseCommit, headCommit);
+
+        var commits = mergeBase is null
+            ? _repo.Commits.QueryBy(new CommitFilter { IncludeReachableFrom = headCommit }).ToList()
+            : _repo.Commits.QueryBy(new CommitFilter { IncludeReachableFrom = headCommit, ExcludeReachableFrom = mergeBase }).ToList();
+
+        int behind = mergeBase is null ? 0
+            : _repo.Commits.QueryBy(new CommitFilter { IncludeReachableFrom = baseCommit, ExcludeReachableFrom = headCommit }).Count();
+
+        var diffTarget = mergeBase?.Tree ?? baseCommit.Tree;
+        var patch = _repo.Diff.Compare<Patch>(diffTarget, headCommit.Tree,
+            compareOptions: new CompareOptions { Similarity = SimilarityOptions.Renames });
+
+        var files = new List<DiffFile>();
+        int add = 0, del = 0;
+        foreach (var pc in patch)
+        {
+            add += pc.LinesAdded;
+            del += pc.LinesDeleted;
+            files.Add(new DiffFile(pc.Path, pc.OldPath == pc.Path ? null : pc.OldPath,
+                pc.Status.ToString(), pc.LinesAdded, pc.LinesDeleted, pc.IsBinaryComparison,
+                pc.IsBinaryComparison ? null : pc.Patch));
+        }
+
+        bool mergeable = true;
+        var conflicts = new List<string>();
+        if (mergeBase is not null && baseCommit.Sha != headCommit.Sha)
+        {
+            var result = _repo.ObjectDatabase.MergeCommits(baseCommit, headCommit,
+                new MergeTreeOptions { FailOnConflict = false });
+            if (result.Status == MergeTreeStatus.Conflicts)
+            {
+                mergeable = false;
+                conflicts = result.Conflicts.Select(c => c.Ours?.Path ?? c.Theirs?.Path ?? c.Ancestor?.Path ?? "?")
+                    .Distinct().ToList();
+            }
+        }
+
+        return new Comparison(baseRef, headRef, baseCommit.Sha, headCommit.Sha, mergeBase?.Sha,
+            commits.Count, behind, mergeable, conflicts,
+            commits.Select(Summarise).ToList(), files, add, del);
     }
 
     private static CommitSummary Summarise(Commit c) => new(

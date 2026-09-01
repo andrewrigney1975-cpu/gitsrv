@@ -53,6 +53,21 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   `views/repo-settings.js`. `features/highlight.js` lazy-loads highlight.js from cdnjs (allowed in
   the nginx CSP). Router (`router.js`) supports `:param` and a trailing `*rest`.
 
+## Pull requests (Phase 4)
+
+- `Git/RepoReader.Compare(baseRef, headRef)` — merge-base, commits ahead/behind, merge-base→head
+  diff, and tree-only conflict detection (`ObjectDatabase.MergeCommits`).
+- `Git/PrMergeService.cs` — merge/squash/rebase done purely in libgit2 (merged tree →
+  `CreateCommit` → `Refs.UpdateTarget`), no working tree. Serialised per repo by
+  `PullRequestService`'s `SemaphoreSlim` map.
+- `Git/PullRequestService.cs` — PR lifecycle, review threads (pending comments visible only to
+  their author until a review is submitted), merge gating, and `SyncAfterPushAsync` (called from
+  both git transports after receive-pack: closes PRs whose head branch is gone, marks merged when
+  base contains head).
+- `Endpoints/PullRequestEndpoints.cs` — `/api/orgs/{slug}/repos/{repoSlug}/pulls/*`. GET is
+  Read (anon on public); comments/reviews need Triage; create/merge need Write.
+- Web: `views/pulls.js`. Cross-fork PRs are not implemented (no fork feature yet).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

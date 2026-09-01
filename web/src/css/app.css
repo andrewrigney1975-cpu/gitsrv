@@ -250,3 +250,37 @@ pre.setup, pre.commit-body, pre.setup { background: var(--gs-surface-sunken); pa
 .graph-row:hover { background: var(--gs-hover-tint); text-decoration: none; }
 .graph-row .g-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ref-pill { background: var(--gs-blue); color: #fff; font-size: 10px; padding: 1px 6px; }
+
+/* ===== pull requests ===== */
+.pr-list .pr-row, .pr-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--gs-border); }
+.pr-list .pr-row:last-child { border: none; }
+.pill.state-open { background: var(--gs-good-bg); color: var(--gs-good-fg); }
+.pill.state-merged { background: #e5d9fb; color: #4b3fb0; }
+.pill.state-closed { background: var(--gs-danger-bg); color: var(--gs-danger); }
+:root[data-theme="dark"] .pill.state-merged, :root:not([data-theme="light"]) .pill.state-merged { background: #2a2650; color: #b3a7ff; }
+
+.compare-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+.good-note { color: var(--gs-good-fg); background: var(--gs-good-bg); padding: 8px 12px; border-radius: var(--gs-radius); }
+.bad-note { color: var(--gs-danger); background: var(--gs-danger-bg); padding: 8px 12px; border-radius: var(--gs-radius); }
+.pr-substate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.comment, .thread, .review-event, .merge-box, .review-bar { }
+.comment { border-bottom: 1px solid var(--gs-border); padding: 10px 14px; }
+.comment.pending { background: var(--gs-warn-bg); }
+.comment p, .review-event p { white-space: pre-wrap; margin: 4px 0 0; }
+.comment-form { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; }
+.comment-form textarea, .review-bar textarea, .inline-form textarea { font: inherit; padding: 8px; border-radius: var(--gs-radius);
+  border: 1px solid var(--gs-border-strong); background: var(--gs-input-bg); color: var(--gs-text); resize: vertical; }
+.review-event { border-left: 3px solid var(--gs-border-strong); }
+.review-event.review-approve { border-left-color: var(--gs-good-fg); }
+.review-event.review-request_changes { border-left-color: var(--gs-danger); }
+.review-bar { display: flex; flex-direction: column; gap: 8px; }
+.merge-box { display: flex; flex-direction: column; gap: 10px; }
+
+.thread { margin: 0; border-top: 1px solid var(--gs-border); background: var(--gs-surface-sunken); }
+.thread.resolved { opacity: .7; }
+.thread-loc { padding: 6px 14px; display: flex; gap: 8px; align-items: center; }
+.pl.commentable { cursor: pointer; }
+.pl.commentable:hover { outline: 1px solid var(--gs-blue); outline-offset: -1px; }
+.inline-form { margin: 4px 14px; }
+button.good { border-color: var(--gs-good-fg); color: var(--gs-good-fg); background: transparent; }

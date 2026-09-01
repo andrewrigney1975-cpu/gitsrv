@@ -74,13 +74,15 @@ public static class InternalSshEndpoints
             });
         });
 
-        // Called by the shim after a successful receive-pack to refresh size accounting.
-        g.MapPost("/pushed/{repoId:long}/{orgId:long}", async (long repoId, long orgId, GitStorage storage, Db db, CancellationToken ct) =>
+        // Called by the shim after a successful receive-pack to refresh size accounting + PR state.
+        g.MapPost("/pushed/{repoId:long}/{orgId:long}", async (long repoId, long orgId, GitStorage storage, Db db,
+            PullRequestService prs, CancellationToken ct) =>
         {
             var size = storage.MeasureSize(orgId, repoId);
             await using var conn = await db.OpenAsync(ct);
             await conn.ExecuteAsync("UPDATE repositories SET size_bytes = @size, pushed_at = now() WHERE id = @repoId",
                 new { size, repoId });
+            await prs.SyncAfterPushAsync(repoId, storage.RepoPath(orgId, repoId), ct);
             return Results.NoContent();
         });
     }

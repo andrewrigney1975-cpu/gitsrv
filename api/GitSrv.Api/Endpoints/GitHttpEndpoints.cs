@@ -38,15 +38,17 @@ public static class GitHttpEndpoints
 
         app.MapPost("/{org}/{repo}/git-upload-pack", (string org, string repo, HttpContext ctx,
             GitAuthResolver auth, GitAccessService access, GitBackend backend, CancellationToken ct)
-            => Rpc(org, repo, "git-upload-pack", GitOperation.Read, ctx, auth, access, backend, null, ct));
+            => Rpc(org, repo, "git-upload-pack", GitOperation.Read, ctx, auth, access, backend, null, null, ct));
 
         app.MapPost("/{org}/{repo}/git-receive-pack", (string org, string repo, HttpContext ctx,
-            GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage storage, CancellationToken ct)
-            => Rpc(org, repo, "git-receive-pack", GitOperation.Write, ctx, auth, access, backend, storage, ct));
+            GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage storage,
+            PullRequestService prs, CancellationToken ct)
+            => Rpc(org, repo, "git-receive-pack", GitOperation.Write, ctx, auth, access, backend, storage, prs, ct));
     }
 
     private static async Task<IResult> Rpc(string org, string repo, string service, GitOperation op,
-        HttpContext ctx, GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage? storage, CancellationToken ct)
+        HttpContext ctx, GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage? storage,
+        PullRequestService? prs, CancellationToken ct)
     {
         if (op == GitOperation.Write && storage is not null && storage.MaxPushBytes > 0
             && ctx.Request.ContentLength is { } len && len > storage.MaxPushBytes)
@@ -67,7 +69,11 @@ public static class GitHttpEndpoints
         await backend.RpcAsync(ctx, service, target.AbsolutePath, GitProtocol(ctx), ct);
 
         if (op == GitOperation.Write)
+        {
             await access.RecordPushAsync(target, CancellationToken.None);
+            if (prs is not null)
+                await prs.SyncAfterPushAsync(target.RepoId, target.AbsolutePath, CancellationToken.None);
+        }
 
         return Results.Empty;
     }

@@ -28,6 +28,7 @@ export function shell(b, refName, section, body) {
     el('nav', { class: 'sub-nav' },
       tab('code', base, 'Code'),
       tab('commits', `${base}/commits/${enc(refName)}`, 'Commits'),
+      tab('pulls', `${base}/pulls`, 'Pull requests'),
       tab('graph', `${base}/graph`, 'Graph'),
       b.myPermission === 'admin' && tab('settings', `${base}/settings`, 'Settings')),
     body);

@@ -74,6 +74,8 @@ builder.Services.AddScoped<RepoService>();
 builder.Services.AddScoped<SshKeyService>();
 builder.Services.AddScoped<GitAccessService>();
 builder.Services.AddScoped<RepoBrowseService>();
+builder.Services.AddSingleton<PrMergeService>();
+builder.Services.AddScoped<PullRequestService>();
 builder.Services.AddScoped<GitHttpEndpoints.GitAuthResolver>();
 
 builder.Services.AddHealthChecks();
@@ -112,7 +114,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 3,
+    phase = 4,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -123,6 +125,7 @@ app.MapUsers();
 app.MapOrgs();
 app.MapRepos();
 app.MapRepoBrowse();
+app.MapPullRequests();
 app.MapInternalSsh(builder.Configuration["GitSrv:InternalToken"] ?? "");
 
 // Git Smart-HTTP transport at the clone-URL root. Mapped last so its greedy /{org}/{repo}/… routes

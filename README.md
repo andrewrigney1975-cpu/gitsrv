@@ -11,6 +11,15 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 4 — pull requests.** Same-repo cross-branch PRs with a libgit2 three-way compare
+(merge-base, ahead/behind, conflict detection on trees, rename detection). Inline review threads
+with pending comments that publish on review submission; review states (comment / approve / request
+changes); resolvable threads. Merge via merge-commit, squash or rebase — executed entirely through
+libgit2, no worktree — gated on conflicts, draft status and outstanding change requests, with
+optional head-branch auto-delete. Pushing the base branch past a PR's head auto-merges it; deleting
+the head branch auto-closes it. Web UI: PR list, compare/new-PR screen, and a detail view with
+conversation, commits, a files-changed diff with click-to-comment, a review bar and a merge box.
+
 **Phase 3 — repository browsing.** libgit2-backed read API: ref list, tree, blob (binary/size
 guards), raw download, paginated + per-path commit history, commit detail with unified diff,
 line-level blame with age heat, and a lane-assigned commit graph. Repo home renders the README
