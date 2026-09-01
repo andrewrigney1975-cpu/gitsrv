@@ -1,113 +1,243 @@
 import { api } from '../api.js';
-import { el, form, toast, errorToast, confirmDialog } from '../ui.js';
+import { el, toast, timeAgo } from '../ui.js';
 import { navigate } from '../router.js';
 import { asyncView } from './_shared.js';
+import { highlight } from '../features/highlight.js';
 
-export function renderRepo(slug, repoSlug) {
+// Shared repo chrome: title, clone box, branch picker, tab bar. `body` is the section-specific node.
+export function shell(b, refName, section, body) {
+  refName = refName || b.defaultBranch || 'HEAD';
+  const base = `#/o/${b.orgSlug}/${b.repoSlug}`;
+  const tab = (id, href, label) => el('a', { href, class: 'tab' + (section === id ? ' active' : '') }, label);
+  const httpUrl = `${location.origin}/${b.orgSlug}/${b.repoSlug}.git`;
+  const sshUrl = `git@${location.hostname}:${b.orgSlug}/${b.repoSlug}.git`;
+
+  return el('div', { class: 'stack' },
+    el('div', { class: 'page-head' },
+      el('h1', {},
+        el('a', { href: `#/o/${b.orgSlug}` }, b.orgSlug), ' / ',
+        el('a', { href: base }, b.repoSlug),
+        el('span', { class: `pill vis-${b.visibility}` }, b.visibility),
+        b.isArchived && el('span', { class: 'pill' }, 'archived')),
+      el('details', { class: 'clone-menu' },
+        el('summary', { class: 'btn' }, 'Clone'),
+        el('div', { class: 'clone-pop card' },
+          cloneRow('HTTPS', httpUrl), cloneRow('SSH', sshUrl),
+          el('p', { class: 'muted' }, 'HTTPS password = a personal access token (Settings).')))),
+    b.description && el('p', { class: 'muted' }, b.description),
+    el('nav', { class: 'sub-nav' },
+      tab('code', base, 'Code'),
+      tab('commits', `${base}/commits/${enc(refName)}`, 'Commits'),
+      tab('graph', `${base}/graph`, 'Graph'),
+      b.myPermission === 'admin' && tab('settings', `${base}/settings`, 'Settings')),
+    body);
+}
+
+export const enc = (s) => encodeURIComponent(s);
+function cloneRow(label, url) {
+  const cmd = `git clone ${url}`;
+  return el('div', { class: 'clone-row' },
+    el('span', { class: 'muted mono' }, label),
+    el('code', {}, cmd),
+    el('button', { class: 'small', onclick: () => { navigator.clipboard?.writeText(cmd); toast('Copied.', 'ok'); } }, 'Copy'));
+}
+
+function branchPicker(b, refs, current, kind, path) {
+  if (!refs || refs.isEmpty) return null;
+  const opts = [
+    ...refs.branches.map((r) => ({ v: r.name, g: 'Branches' })),
+    ...refs.tags.map((r) => ({ v: r.name, g: 'Tags' })),
+  ];
+  const sel = el('select', { class: 'ref-picker', onchange: (e) => {
+    const base = `#/o/${b.orgSlug}/${b.repoSlug}`;
+    if (kind === 'tree') navigate(`/o/${b.orgSlug}/${b.repoSlug}/tree/${enc(e.target.value)}${path ? '/' + path : ''}`.replace('#', ''));
+    else if (kind === 'commits') navigate(`/o/${b.orgSlug}/${b.repoSlug}/commits/${enc(e.target.value)}`);
+    else navigate(`/o/${b.orgSlug}/${b.repoSlug}/tree/${enc(e.target.value)}`);
+  }});
+  for (const o of opts) sel.append(el('option', { value: o.v, selected: o.v === current }, o.v));
+  return sel;
+}
+
+// ---- Code / tree + overview ----
+
+export function renderRepoCode(slug, repoSlug, refName, path) {
   return asyncView(async () => {
-    const repo = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/`);
-    const canAdmin = repo.myPermission === 'admin';
-    const httpUrl = `${location.origin}/${repo.orgSlug}/${repo.slug}.git`;
-    const sshHost = location.hostname;
-    const sshUrl = `git@${sshHost}:${repo.orgSlug}/${repo.slug}.git`;
+    const isRoot = !refName && !path;
+    const ov = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/overview${refName ? `?ref=${enc(refName)}` : ''}`);
+    const b = { ...ov.repo, orgSlug: ov.repo.orgSlug, repoSlug: ov.repo.repoSlug, myPermission: ov.myPermission };
+    const currentRef = refName || ov.repo.defaultBranch || 'HEAD';
 
-    const wrap = el('div', { class: 'stack' });
-    wrap.append(el('div', { class: 'page-head' },
-      el('div', {},
-        el('h1', {}, el('a', { href: `#/o/${slug}` }, repo.orgSlug), ' / ', repo.name),
-        repo.description && el('p', { class: 'muted' }, repo.description)),
-      el('div', { class: 'row' },
-        el('span', { class: `pill vis-${repo.visibility}` }, repo.visibility),
-        el('span', { class: 'pill' }, `you: ${repo.myPermission}`))));
-
-    const cloneRow = (label, cmd) => el('div', { class: 'clone-row' },
-      el('span', { class: 'muted mono', style: 'min-width:3.5em' }, label),
-      el('code', {}, cmd),
-      el('button', { class: 'small', onclick: () => { navigator.clipboard?.writeText(cmd); toast('Copied.', 'ok'); } }, 'Copy'));
-    wrap.append(el('div', { class: 'card' },
-      el('h2', {}, 'Clone'),
-      cloneRow('HTTPS', `git clone ${httpUrl}`),
-      cloneRow('SSH', `git clone ${sshUrl}`),
-      el('p', { class: 'muted' }, 'HTTPS: use your username and a personal access token as the password. SSH: add a public key in Settings.')));
-
-    if (canAdmin) {
-      wrap.append(settingsCard());
-      wrap.append(await accessCard());
-    }
-    return wrap;
-
-    function settingsCard() {
-      return el('div', { class: 'card' }, el('h2', {}, 'Settings'), form({
-        fields: [
-          { name: 'name', label: 'Name', value: repo.name, required: true },
-          { name: 'description', label: 'Description', value: repo.description },
-          { name: 'visibility', label: 'Visibility', type: 'select', value: repo.visibility, options: [
-            { value: 'private', label: 'Private' }, { value: 'internal', label: 'Internal' }, { value: 'public', label: 'Public' },
-          ]},
-          { name: 'isArchived', label: 'Archived', type: 'select', value: String(repo.isArchived), options: [
-            { value: 'false', label: 'No' }, { value: 'true', label: 'Yes — read-only' },
-          ]},
-        ],
-        submitLabel: 'Save settings',
-        onSubmit: async (v) => {
-          await api.patch(`/api/orgs/${slug}/repos/${repoSlug}/`, { ...v, isArchived: v.isArchived === 'true' });
-          toast('Saved.', 'ok');
-        },
-      }), el('details', { class: 'danger-zone' },
-        el('summary', {}, 'Rename slug'),
-        form({
-          fields: [{ name: 'slug', label: 'New slug', value: repo.slug, required: true, hint: 'old URLs will 301 to the new one' }],
-          submitLabel: 'Rename',
-          onSubmit: async (v) => {
-            await api.post(`/api/orgs/${slug}/repos/${repoSlug}/rename`, v);
-            toast('Renamed.', 'ok');
-            navigate(`/o/${slug}/${v.slug}`);
-          },
-        })));
+    if (ov.refs.isEmpty) {
+      return shell(b, currentRef, 'code', emptyRepoHelp(b));
     }
 
-    async function accessCard() {
-      const card = el('div', { class: 'card' });
-      async function refresh() {
-        const access = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/collaborators`);
-        const userRows = access.users.map((u) => el('tr', {},
-          el('td', {}, el('strong', {}, u.username)),
-          el('td', {}, el('span', { class: 'pill' }, u.permission)),
-          el('td', { class: 'right' }, el('button', { class: 'danger small', onclick: async () => {
-            await api.del(`/api/orgs/${slug}/repos/${repoSlug}/collaborators/${u.userId}`); await refresh();
-          }}, 'Remove'))));
-        const teamRows = access.teams.map((t) => el('tr', {},
-          el('td', {}, el('strong', {}, t.name), ' ', el('code', { class: 'muted' }, t.slug)),
-          el('td', {}, el('span', { class: 'pill' }, t.permission)),
-          el('td', { class: 'right' }, el('button', { class: 'danger small', onclick: async () => {
-            await api.del(`/api/orgs/${slug}/repos/${repoSlug}/team-access/${t.teamId}`); await refresh();
-          }}, 'Remove'))));
-        card.replaceChildren(
-          el('h2', {}, 'Access'),
-          el('h3', {}, 'Collaborators'),
-          el('table', { class: 'data-table' }, el('tbody', {}, ...(userRows.length ? userRows : [emptyRow()]))),
-          form({
-            fields: [
-              { name: 'username', label: 'Add collaborator', required: true },
-              { name: 'permission', label: 'Permission', type: 'select', value: 'read',
-                options: ['read', 'triage', 'write', 'maintain', 'admin'].map((p) => ({ value: p, label: p })) },
-            ],
-            submitLabel: 'Add', onSubmit: async (v) => { await api.post(`/api/orgs/${slug}/repos/${repoSlug}/collaborators`, v); await refresh(); },
-          }),
-          el('h3', {}, 'Team access'),
-          el('table', { class: 'data-table' }, el('tbody', {}, ...(teamRows.length ? teamRows : [emptyRow()]))),
-          form({
-            fields: [
-              { name: 'teamSlug', label: 'Team slug', required: true },
-              { name: 'permission', label: 'Permission', type: 'select', value: 'read',
-                options: ['read', 'triage', 'write', 'maintain', 'admin'].map((p) => ({ value: p, label: p })) },
-            ],
-            submitLabel: 'Grant', onSubmit: async (v) => { await api.post(`/api/orgs/${slug}/repos/${repoSlug}/team-access`, v); await refresh(); },
-          }));
-      }
-      const emptyRow = () => el('tr', {}, el('td', { colspan: 3, class: 'muted' }, 'None.'));
-      await refresh();
-      return card;
+    let tree, readmeHtml, readmeName, languages;
+    if (isRoot && ov.home) {
+      ({ readmeHtml, readmeName, languages } = ov.home);
+      tree = { entries: ov.home.entries, commit: ov.home.commit, path: '' };
+    } else {
+      tree = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/tree/${enc(currentRef)}${path ? '/' + path : ''}`);
+      languages = null;
     }
+
+    const body = el('div', { class: 'stack' },
+      el('div', { class: 'repo-toolbar' },
+        branchPicker(b, ov.refs, currentRef, 'tree', path),
+        breadcrumb(b, currentRef, tree.path || path || '')),
+      languages && languages.length ? languageBar(languages) : null,
+      treeTable(b, currentRef, tree),
+      tree.commit && lastCommitLine(b, tree.commit),
+      readmeHtml ? el('div', { class: 'card readme' },
+        el('div', { class: 'card-head muted' }, readmeName),
+        el('div', { class: 'markdown', html: readmeHtml })) : null);
+
+    return shell(b, currentRef, 'code', body);
   });
+}
+
+function breadcrumb(b, ref, path) {
+  const parts = path ? path.split('/') : [];
+  const crumbs = [el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/tree/${enc(ref)}` }, b.repoSlug)];
+  let acc = '';
+  parts.forEach((p, i) => {
+    acc = acc ? `${acc}/${p}` : p;
+    crumbs.push(el('span', { class: 'sep' }, '/'));
+    crumbs.push(i === parts.length - 1
+      ? el('strong', {}, p)
+      : el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/tree/${enc(ref)}/${acc}` }, p));
+  });
+  return el('div', { class: 'breadcrumb mono' }, ...crumbs);
+}
+
+function treeTable(b, ref, tree) {
+  const rows = tree.entries.map((e) => {
+    const icon = e.type === 'tree' ? '📁' : e.type === 'submodule' ? '📦' : '📄';
+    const href = e.type === 'tree'
+      ? `#/o/${b.orgSlug}/${b.repoSlug}/tree/${enc(ref)}/${e.path}`
+      : `#/o/${b.orgSlug}/${b.repoSlug}/blob/${enc(ref)}/${e.path}`;
+    return el('tr', {},
+      el('td', { class: 'tree-name' }, el('span', { class: 'ico' }, icon),
+        e.type === 'submodule' ? el('span', {}, e.name) : el('a', { href }, e.name)),
+      el('td', { class: 'right muted mono' }, e.type === 'blob' ? fmtBytes(e.size) : ''));
+  });
+  return el('table', { class: 'data-table tree-table' }, el('tbody', {}, ...rows));
+}
+
+function lastCommitLine(b, c) {
+  return el('div', { class: 'last-commit muted' },
+    el('a', { class: 'mono', href: `#/o/${b.orgSlug}/${b.repoSlug}/commit/${c.sha}` }, c.shortSha),
+    ' ', c.summary, ' · ', c.author.name, ' · ', timeAgo(c.author.when));
+}
+
+function languageBar(langs) {
+  const bar = el('div', { class: 'lang-bar' });
+  langs.forEach((l, i) => bar.append(el('span', {
+    class: `lang-seg lang-${i % 8}`, title: `${l.language} ${l.percent}%`,
+    style: `width:${l.percent}%`,
+  })));
+  const legend = el('div', { class: 'lang-legend' }, ...langs.map((l, i) =>
+    el('span', {}, el('span', { class: `dot lang-${i % 8}` }), `${l.language} ${l.percent}%`)));
+  return el('div', { class: 'card lang-card' }, bar, legend);
+}
+
+function emptyRepoHelp(b) {
+  const url = `${location.origin}/${b.orgSlug}/${b.repoSlug}.git`;
+  return el('div', { class: 'card' },
+    el('h2', {}, 'Quick setup'),
+    el('pre', { class: 'setup' }, [
+      `git init`, `git add .`, `git commit -m "first commit"`,
+      `git branch -M ${b.defaultBranch}`, `git remote add origin ${url}`,
+      `git push -u origin ${b.defaultBranch}`,
+    ].join('\n')));
+}
+
+// ---- Blob / file view ----
+
+export function renderRepoBlob(slug, repoSlug, refName, path) {
+  return asyncView(async () => {
+    const ov = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/overview?ref=${enc(refName)}`);
+    const b = { ...ov.repo, myPermission: ov.myPermission };
+    const res = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/blob/${enc(refName)}/${path}`);
+    const blob = res.blob;
+
+    const rawUrl = `/api/orgs/${slug}/repos/${repoSlug}/browse/raw/${enc(refName)}/${path}`;
+    const actions = el('div', { class: 'file-actions' },
+      el('span', { class: 'muted mono' }, `${fmtBytes(blob.size)}`),
+      el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/blame/${enc(refName)}/${path}` }, 'Blame'),
+      el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/commits/${enc(refName)}?path=${enc(path)}` }, 'History'),
+      el('a', { href: rawUrl, target: '_blank', rel: 'noopener' }, 'Raw'));
+
+    let content;
+    if (blob.isBinary) {
+      content = el('div', { class: 'card muted' }, 'Binary file — ',
+        el('a', { href: rawUrl, target: '_blank', rel: 'noopener' }, 'download'), ` (${fmtBytes(blob.size)})`);
+    } else if (blob.isTruncated) {
+      content = el('div', { class: 'card muted' }, 'File is too large to display. ',
+        el('a', { href: rawUrl, target: '_blank', rel: 'noopener' }, 'Download raw'));
+    } else {
+      content = codeBlock(blob.text, res.language, path);
+    }
+
+    const body = el('div', { class: 'stack' },
+      el('div', { class: 'repo-toolbar' }, breadcrumb(b, refName, path), actions),
+      content);
+    return shell(b, refName, 'code', body);
+  });
+}
+
+export function codeBlock(text, language, path, blameByLine) {
+  const lines = text.replace(/\n$/, '').split('\n');
+  const gutter = el('div', { class: 'gutter' });
+  const code = el('div', { class: 'code' });
+  lines.forEach((ln, i) => {
+    const n = i + 1;
+    gutter.append(el('a', { id: `L${n}`, href: `#L${n}`, class: 'ln' }, String(n)));
+    const row = el('div', { class: 'cl' });
+    row.textContent = ln || ' ';
+    code.append(row);
+  });
+  const pre = el('div', { class: 'codeview' }, gutter, el('pre', {}, code));
+  highlight(code, language, path);
+  return el('div', { class: 'card nopad' }, pre);
+}
+
+// ---- Blame ----
+
+export function renderRepoBlame(slug, repoSlug, refName, path) {
+  return asyncView(async () => {
+    const ov = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/overview?ref=${enc(refName)}`);
+    const b = { ...ov.repo, myPermission: ov.myPermission };
+    const bl = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/blame/${enc(refName)}/${path}`);
+
+    const byLine = [];
+    for (const h of bl.hunks) for (let i = 0; i < h.lineCount; i++) byLine[h.startLine + i] = h;
+    const now = Date.now();
+    const rows = bl.lines.map((ln, i) => {
+      const n = i + 1;
+      const h = byLine[n];
+      const ageDays = h ? (now - new Date(h.author.when)) / 86400000 : 0;
+      const heat = h ? Math.max(0, 1 - Math.min(ageDays, 365) / 365) : 0;
+      const first = h && (i === 0 || byLine[i]?.sha !== h.sha);
+      return el('div', { class: 'blame-row' },
+        el('div', { class: 'blame-meta', style: `--heat:${heat.toFixed(2)}` },
+          first ? el('a', { class: 'mono', href: `#/o/${b.orgSlug}/${b.repoSlug}/commit/${h.sha}`, title: h.summary }, h.shortSha) : '',
+          first ? el('span', { class: 'muted' }, ` ${h.author.name}, ${timeAgo(h.author.when)}`) : ''),
+        el('a', { class: 'ln', id: `L${n}`, href: `#L${n}` }, String(n)),
+        Object.assign(el('div', { class: 'cl' }), { textContent: ln || ' ' }));
+    });
+
+    const body = el('div', { class: 'stack' },
+      el('div', { class: 'repo-toolbar' }, breadcrumb(b, refName, path),
+        el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/blob/${enc(refName)}/${path}` }, 'Back to file')),
+      el('div', { class: 'card nopad blame' }, ...rows));
+    return shell(b, refName, 'code', body);
+  });
+}
+
+// ---- helpers ----
+
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

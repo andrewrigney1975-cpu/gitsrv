@@ -41,6 +41,18 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
 - Both transports funnel through `Git/GitAccessService.ResolveAsync` for path resolution + authz.
 - PATs: `Auth/PatService.cs`, format `gsp_<64hex>`, sha256-hashed, scoped read/write.
 
+## Repository browsing (Phase 3)
+
+- `Git/RepoReader.cs` — libgit2 (LibGit2Sharp) read model: refs, tree, blob, log, commit+diff,
+  blame, and the commit-graph lane assignment. Constructed per request, disposed after.
+- `Git/RepoBrowseService.cs` — resolves org/repo (+ redirects), computes permission (anonymous
+  gets Read on public repos via `Authorizer.GetRepoPermissionAsync(long?, …)`), opens a RepoReader.
+- `Endpoints/RepoBrowseEndpoints.cs` — `/api/orgs/{slug}/repos/{repoSlug}/browse/*`, NOT behind
+  RequireAuth. README → HTML via `Git/MarkdownRenderer.cs` (raw HTML disabled).
+- Web: `views/repo.js` (shell + code/blob/blame), `views/repo-history.js` (commits/commit/graph),
+  `views/repo-settings.js`. `features/highlight.js` lazy-loads highlight.js from cdnjs (allowed in
+  the nginx CSP). Router (`router.js`) supports `:param` and a trailing `*rest`.
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

@@ -167,3 +167,86 @@ form.stack { gap: 12px; }
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
 h3 { font-size: .95rem; margin: 16px 0 6px; color: var(--gs-text-secondary); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ===== repository browsing ===== */
+.card.nopad { padding: 0; overflow: hidden; }
+.repo-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ref-picker { max-width: 220px; }
+.breadcrumb { font-size: 13px; }
+.breadcrumb .sep { color: var(--gs-text-faint); margin: 0 4px; }
+.clone-menu { position: relative; }
+.clone-menu > summary { list-style: none; }
+.clone-menu > summary::-webkit-details-marker { display: none; }
+.clone-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 380px; }
+.clone-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.clone-row code { flex: 1; padding: 6px 8px; background: var(--gs-surface-sunken); border-radius: var(--gs-radius); overflow-x: auto; font-size: 12px; }
+
+.tree-table td { padding: 6px 12px; }
+.tree-name { display: flex; align-items: center; gap: 8px; }
+.tree-name .ico { opacity: .8; }
+.last-commit { font-size: 13px; padding: 4px 2px; }
+
+.lang-card { padding: 12px 16px; }
+.lang-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+.lang-seg { height: 100%; }
+.lang-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--gs-text-secondary); }
+.lang-legend .dot, .ref-pill { display: inline-block; }
+.lang-legend .dot { width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+.lang-0,.dot.lang-0 { background: #0c66e4; } .lang-1,.dot.lang-1 { background: #a8620c; }
+.lang-2,.dot.lang-2 { background: #1f7a54; } .lang-3,.dot.lang-3 { background: #7a3ea8; }
+.lang-4,.dot.lang-4 { background: #b23b2e; } .lang-5,.dot.lang-5 { background: #0a7ea4; }
+.lang-6,.dot.lang-6 { background: #8a6d00; } .lang-7,.dot.lang-7 { background: #c2185b; }
+
+.readme .card-head { padding: 8px 16px; border-bottom: 1px solid var(--gs-border); font-size: 12px; }
+.markdown { padding: 20px; line-height: 1.6; }
+.markdown pre { background: var(--gs-surface-sunken); padding: 12px; border-radius: var(--gs-radius); overflow-x: auto; }
+.markdown code { background: var(--gs-surface-sunken); padding: 1px 4px; border-radius: 3px; }
+.markdown pre code { background: none; padding: 0; }
+.markdown h1, .markdown h2 { border-bottom: 1px solid var(--gs-border); padding-bottom: .3em; }
+.markdown table { border-collapse: collapse; }
+.markdown th, .markdown td { border: 1px solid var(--gs-border); padding: 6px 10px; }
+pre.setup, pre.commit-body, pre.setup { background: var(--gs-surface-sunken); padding: 12px 16px; border-radius: var(--gs-radius); overflow-x: auto; font-size: 12px; }
+
+/* code view */
+.file-actions { display: flex; gap: 14px; align-items: center; font-size: 13px; }
+.codeview { display: flex; overflow-x: auto; font-family: var(--gs-font-mono); font-size: 12.5px; line-height: 1.5; }
+.codeview .gutter { display: flex; flex-direction: column; text-align: right; padding: 8px 0; background: var(--gs-surface-sunken); user-select: none; position: sticky; left: 0; }
+.codeview .ln { padding: 0 12px; color: var(--gs-text-faint); text-decoration: none; }
+.codeview .ln:target, .codeview .cl:target { background: var(--gs-warn-bg); }
+.codeview pre { margin: 0; padding: 8px 0; flex: 1; }
+.codeview .code { white-space: pre; }
+.codeview .cl { padding: 0 16px; min-height: 1.5em; }
+.codeview .cl:hover { background: var(--gs-hover-tint); }
+
+/* commit list + diff */
+.commit-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--gs-border); }
+.commit-row:last-child { border: none; }
+.commit-side { display: flex; align-items: center; gap: 6px; }
+.pager { display: flex; gap: 8px; }
+.diffstat .add, .add { color: var(--gs-diff-add-fg); }
+.diffstat .del, .del { color: var(--gs-diff-del-fg); }
+.diff-file { margin-top: 12px; }
+.diff-head { padding: 8px 14px; background: var(--gs-surface-sunken); border-bottom: 1px solid var(--gs-border); font-size: 12px; }
+.diff-binary { padding: 12px 14px; }
+.patch { font-family: var(--gs-font-mono); font-size: 12px; overflow-x: auto; }
+.patch .pl { white-space: pre; padding: 0 14px; }
+.patch .add { background: var(--gs-diff-add-bg); }
+.patch .del { background: var(--gs-diff-del-bg); }
+.patch .hunk { background: var(--gs-surface-sunken); color: var(--gs-text-secondary); }
+.patch .meta { color: var(--gs-text-faint); }
+
+/* blame */
+.blame .blame-row { display: flex; font-family: var(--gs-font-mono); font-size: 12.5px; line-height: 1.6; }
+.blame .blame-meta { flex: 0 0 260px; padding: 0 10px; font-size: 11px; overflow: hidden; white-space: nowrap;
+  border-left: 3px solid color-mix(in srgb, var(--gs-blue) calc(var(--heat, 0) * 100%), transparent); }
+.blame .ln { flex: 0 0 48px; text-align: right; padding: 0 8px; color: var(--gs-text-faint); }
+.blame .cl { white-space: pre; padding: 0 12px; }
+
+/* graph */
+.graph-wrap { overflow-x: auto; }
+.graph-inner { position: relative; }
+.graph-rows { position: relative; }
+.graph-row { display: flex; align-items: center; gap: 8px; padding: 0 12px; text-decoration: none; color: var(--gs-text); font-size: 13px; }
+.graph-row:hover { background: var(--gs-hover-tint); text-decoration: none; }
+.graph-row .g-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-pill { background: var(--gs-blue); color: #fff; font-size: 10px; padding: 1px 6px; }

@@ -11,6 +11,13 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 3 — repository browsing.** libgit2-backed read API: ref list, tree, blob (binary/size
+guards), raw download, paginated + per-path commit history, commit detail with unified diff,
+line-level blame with age heat, and a lane-assigned commit graph. Repo home renders the README
+(Markdown → sanitised HTML) and a language bar. Web UI: file tree, breadcrumb, branch/tag picker,
+file view with lazy syntax highlighting (highlight.js), commit list, diff view, blame, and a Canvas
+commit graph. Public repos are browsable without an account.
+
 **Phase 2 — Git transport.** Full Git over HTTPS and SSH. Bare repos are created on the shared
 volume when a repo record is made (`{root}/{orgId}/{repoId}.git`, self-healing). Smart-HTTP
 (`info/refs`, `git-upload-pack`, `git-receive-pack`) streams straight through `git`; auth is HTTP

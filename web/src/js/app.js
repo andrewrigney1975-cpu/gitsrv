@@ -10,7 +10,9 @@ import { renderNewOrg } from './views/new-org.js';
 import { renderOrg } from './views/org.js';
 import { renderOrgPeople } from './views/org-people.js';
 import { renderOrgTeams } from './views/org-teams.js';
-import { renderRepo } from './views/repo.js';
+import { renderRepoCode, renderRepoBlob, renderRepoBlame } from './views/repo.js';
+import { renderRepoCommits, renderRepoCommit, renderRepoGraph } from './views/repo-history.js';
+import { renderRepoSettings } from './views/repo-settings.js';
 
 initThemeToggle();
 
@@ -35,7 +37,17 @@ route('/o/:slug', requireAuth((ctx) => mount(renderOrg(ctx.params.slug))));
 route('/o/:slug/people', requireAuth((ctx) => mount(renderOrgPeople(ctx.params.slug))));
 route('/o/:slug/teams', requireAuth((ctx) => mount(renderOrgTeams(ctx.params.slug, null))));
 route('/o/:slug/teams/:teamSlug', requireAuth((ctx) => mount(renderOrgTeams(ctx.params.slug, ctx.params.teamSlug))));
-route('/o/:slug/:repo', requireAuth((ctx) => mount(renderRepo(ctx.params.slug, ctx.params.repo))));
+
+// Repository browsing — more specific routes first (the router takes the first match).
+const P = (ctx) => ctx.params;
+route('/o/:slug/:repo/blob/:ref/*path', (ctx) => mount(renderRepoBlob(P(ctx).slug, P(ctx).repo, P(ctx).ref, P(ctx).path)));
+route('/o/:slug/:repo/blame/:ref/*path', (ctx) => mount(renderRepoBlame(P(ctx).slug, P(ctx).repo, P(ctx).ref, P(ctx).path)));
+route('/o/:slug/:repo/tree/:ref/*path', (ctx) => mount(renderRepoCode(P(ctx).slug, P(ctx).repo, P(ctx).ref, P(ctx).path)));
+route('/o/:slug/:repo/commits/:ref', (ctx) => mount(renderRepoCommits(P(ctx).slug, P(ctx).repo, P(ctx).ref, ctx.query)));
+route('/o/:slug/:repo/commit/:sha', (ctx) => mount(renderRepoCommit(P(ctx).slug, P(ctx).repo, P(ctx).sha)));
+route('/o/:slug/:repo/graph', (ctx) => mount(renderRepoGraph(P(ctx).slug, P(ctx).repo)));
+route('/o/:slug/:repo/settings', requireAuth((ctx) => mount(renderRepoSettings(P(ctx).slug, P(ctx).repo))));
+route('/o/:slug/:repo', (ctx) => mount(renderRepoCode(P(ctx).slug, P(ctx).repo, null, null)));
 setNotFound(() => mount(el('div', { class: 'card' }, el('h1', {}, 'Not found'),
   el('p', { class: 'lede' }, 'That page does not exist.'))));
 
@@ -70,7 +82,10 @@ function renderChrome() {
 (async () => {
   await session.load();
   renderChrome();
+  // Send anonymous visitors to sign-in unless they're deep-linking to a repo page (public repos
+  // are browsable without an account) or already on the login screen.
+  const path = currentPath();
+  const anonOk = path === '/login' || /^\/o\/[^/]+\/[^/]+/.test(path);
+  if (!session.isAuthenticated && !anonOk) { navigate('/login'); }
   startRouter();
-  // After login the auth view calls navigate('/'); guard the very first load too.
-  if (!session.isAuthenticated && currentPath() !== '/login') navigate('/login');
 })();

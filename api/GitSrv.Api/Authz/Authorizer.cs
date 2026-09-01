@@ -37,6 +37,20 @@ public sealed class Authorizer(Db db)
             throw new ForbiddenException($"This action requires the '{minimum.ToString().ToLowerInvariant()}' org role.");
     }
 
+    /// <summary>Permission for a possibly-anonymous caller. Anonymous gets Read on public repos only.</summary>
+    public async Task<RepoPermission> GetRepoPermissionAsync(long? userId, long repoId, CancellationToken ct)
+    {
+        if (userId is { } id)
+            return await GetRepoPermissionAsync(id, repoId, ct);
+
+        await using var conn = await db.OpenAsync(ct);
+        var visibility = await conn.QuerySingleOrDefaultAsync<string?>(
+            "SELECT visibility FROM repositories WHERE id = @repoId", new { repoId });
+        if (visibility is null)
+            throw new NotFoundException("Repository not found.");
+        return visibility == "public" ? RepoPermission.Read : RepoPermission.None;
+    }
+
     public async Task<RepoPermission> GetRepoPermissionAsync(long userId, long repoId, CancellationToken ct)
     {
         await using var conn = await db.OpenAsync(ct);
