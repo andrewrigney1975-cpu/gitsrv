@@ -11,6 +11,14 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 6 — advanced Git ops & branch policy.** Branch protection (require PR, N approvals, block
+force-push/deletion, linear history, restrict direct pushes) enforced by a `pre-receive` hook in
+every bare repo that calls back to the API — so a protected `main` rejects a direct push over both
+transports. Web-initiated ops via libgit2, no worktree: create/rename/delete branch, cherry-pick,
+revert, edit a file and commit. Releases with annotated tags and uploadable binary assets. Repo
+webhooks (HMAC-signed, delivery log) fired from the `post-receive` hook. Repo config for default
+branch and allowed merge methods.
+
 **Phase 5 — issues, notifications, activity.** Issues share a per-repo number space with PRs, so
 `#5` is unambiguous. Labels, milestones, assignees, comments, a state timeline, and cross-references
 from PRs/commits (`closes #N` in a merged PR closes the issue). Shared Markdown pipeline: task

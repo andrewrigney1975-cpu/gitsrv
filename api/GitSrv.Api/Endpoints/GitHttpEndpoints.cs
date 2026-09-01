@@ -38,17 +38,17 @@ public static class GitHttpEndpoints
 
         app.MapPost("/{org}/{repo}/git-upload-pack", (string org, string repo, HttpContext ctx,
             GitAuthResolver auth, GitAccessService access, GitBackend backend, CancellationToken ct)
-            => Rpc(org, repo, "git-upload-pack", GitOperation.Read, ctx, auth, access, backend, null, null, ct));
+            => Rpc(org, repo, "git-upload-pack", GitOperation.Read, ctx, auth, access, backend, null, null, null, ct));
 
         app.MapPost("/{org}/{repo}/git-receive-pack", (string org, string repo, HttpContext ctx,
             GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage storage,
-            PullRequestService prs, CancellationToken ct)
-            => Rpc(org, repo, "git-receive-pack", GitOperation.Write, ctx, auth, access, backend, storage, prs, ct));
+            PullRequestService prs, IConfiguration cfg, CancellationToken ct)
+            => Rpc(org, repo, "git-receive-pack", GitOperation.Write, ctx, auth, access, backend, storage, prs, cfg, ct));
     }
 
     private static async Task<IResult> Rpc(string org, string repo, string service, GitOperation op,
         HttpContext ctx, GitAuthResolver auth, GitAccessService access, GitBackend backend, GitStorage? storage,
-        PullRequestService? prs, CancellationToken ct)
+        PullRequestService? prs, IConfiguration? cfg, CancellationToken ct)
     {
         if (op == GitOperation.Write && storage is not null && storage.MaxPushBytes > 0
             && ctx.Request.ContentLength is { } len && len > storage.MaxPushBytes)
@@ -66,7 +66,17 @@ public static class GitHttpEndpoints
         if (target is null)
             return principal.UserId is null ? Challenge(ctx) : Results.NotFound();
 
-        await backend.RpcAsync(ctx, service, target.AbsolutePath, GitProtocol(ctx), ct);
+        IReadOnlyDictionary<string, string>? hookEnv = null;
+        if (op == GitOperation.Write && cfg is not null)
+            hookEnv = new Dictionary<string, string>
+            {
+                ["GITSRV_API_BASE"] = "http://localhost:8080",
+                ["GITSRV_INTERNAL_TOKEN"] = cfg["GitSrv:InternalToken"] ?? "",
+                ["GITSRV_REPO_ID"] = target.RepoId.ToString(),
+                ["GITSRV_PUSHER_ID"] = principal.UserId?.ToString() ?? "",
+            };
+
+        await backend.RpcAsync(ctx, service, target.AbsolutePath, GitProtocol(ctx), ct, hookEnv);
 
         if (op == GitOperation.Write)
         {

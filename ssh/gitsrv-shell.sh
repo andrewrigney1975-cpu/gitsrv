@@ -38,6 +38,12 @@ fi
 DIR="$(printf '%s' "$RESP" | jq -r '.absolutePath')"
 REPO_ID="$(printf '%s' "$RESP" | jq -r '.repoId')"
 ORG_ID="$(printf '%s' "$RESP" | jq -r '.orgId')"
+USER_ID="$(printf '%s' "$RESP" | jq -r '.userId')"
+
+# So the bare repo's pre-receive / post-receive hooks can call back to the API.
+export GITSRV_API_BASE GITSRV_INTERNAL_TOKEN
+export GITSRV_REPO_ID="$REPO_ID"
+export GITSRV_PUSHER_ID="$USER_ID"
 
 if [ "$VERB" = "git-receive-pack" ]; then
   "$VERB" "$DIR"

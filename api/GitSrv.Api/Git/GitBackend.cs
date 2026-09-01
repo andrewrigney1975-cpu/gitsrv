@@ -30,7 +30,8 @@ public sealed class GitBackend(ILogger<GitBackend> logger)
     }
 
     /// <summary>Handles <c>POST /git-upload-pack</c> or <c>POST /git-receive-pack</c>.</summary>
-    public async Task RpcAsync(HttpContext ctx, string service, string repoDir, string? gitProtocol, CancellationToken ct)
+    public async Task RpcAsync(HttpContext ctx, string service, string repoDir, string? gitProtocol, CancellationToken ct,
+        IReadOnlyDictionary<string, string>? hookEnv = null)
     {
         ctx.Response.ContentType = $"application/x-{service}-result";
         ctx.Response.Headers.CacheControl = "no-cache";
@@ -40,10 +41,11 @@ public sealed class GitBackend(ILogger<GitBackend> logger)
             input = new GZipStream(input, CompressionMode.Decompress);
 
         var verb = service["git-".Length..];
-        await RunAsync(verb, ["--stateless-rpc", repoDir], gitProtocol, input, ctx.Response.Body, ct);
+        await RunAsync(verb, ["--stateless-rpc", repoDir], gitProtocol, input, ctx.Response.Body, ct, hookEnv);
     }
 
-    private async Task RunAsync(string verb, string[] args, string? gitProtocol, Stream? input, Stream output, CancellationToken ct)
+    private async Task RunAsync(string verb, string[] args, string? gitProtocol, Stream? input, Stream output, CancellationToken ct,
+        IReadOnlyDictionary<string, string>? hookEnv = null)
     {
         var psi = new ProcessStartInfo("git")
         {
@@ -57,6 +59,9 @@ public sealed class GitBackend(ILogger<GitBackend> logger)
         // Protocol v2 when the client asked for it.
         if (!string.IsNullOrEmpty(gitProtocol))
             psi.Environment["GIT_PROTOCOL"] = gitProtocol;
+        // Passed through to the pre-receive / post-receive hooks.
+        if (hookEnv is not null)
+            foreach (var (k, v) in hookEnv) psi.Environment[k] = v;
 
         using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start git.");
 

@@ -9,6 +9,7 @@ namespace GitSrv.Api.Endpoints;
 public static class RepoEndpoints
 {
     public sealed record UpdateRepoRequest(string Name, string Description, string Visibility, bool IsArchived);
+    private sealed record MergeFlags(bool AllowMergeCommit, bool AllowSquash, bool AllowRebase, bool DeleteBranchOnMerge);
     public sealed record RenameRepoRequest(string Slug);
     public sealed record AddCollaboratorRequest(string Username, string Permission);
     public sealed record AddTeamAccessRequest(string TeamSlug, string Permission);
@@ -41,10 +42,16 @@ public static class RepoEndpoints
             if (perm == RepoPermission.None)
                 throw new NotFoundException("Repository not found.");
 
+            await using var mc = await db.OpenAsync(ct);
+            var flags = await mc.QuerySingleAsync<MergeFlags>(
+                "SELECT allow_merge_commit AS AllowMergeCommit, allow_squash AS AllowSquash, allow_rebase AS AllowRebase, delete_branch_on_merge AS DeleteBranchOnMerge FROM repositories WHERE id = @id",
+                new { id = repo.Id });
+
             return Results.Json(new
             {
                 repo.Id, repo.Slug, repo.Name, repo.Description, repo.Visibility,
                 repo.DefaultBranch, repo.IsArchived, orgSlug = org.Slug,
+                flags.AllowMergeCommit, flags.AllowSquash, flags.AllowRebase, flags.DeleteBranchOnMerge,
                 myPermission = RepoPermissions.ToDbValue(perm),
             });
         });

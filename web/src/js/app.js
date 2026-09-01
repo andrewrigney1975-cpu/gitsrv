@@ -17,6 +17,7 @@ import { renderRepoSettings } from './views/repo-settings.js';
 import { renderPullList, renderNewPull, renderPullDetail } from './views/pulls.js';
 import { renderIssueList, renderNewIssue, renderIssueDetail, renderLabels, renderMilestones } from './views/issues.js';
 import { renderInbox } from './views/inbox.js';
+import { renderReleases, renderNewRelease, renderReleaseDetail } from './views/releases.js';
 
 initThemeToggle();
 
@@ -55,6 +56,9 @@ route('/o/:slug/:repo/pulls', (ctx) => mount(renderPullList(P(ctx).slug, P(ctx).
 route('/o/:slug/:repo/issues/new', requireAuth((ctx) => mount(renderNewIssue(P(ctx).slug, P(ctx).repo))));
 route('/o/:slug/:repo/issues/:number', (ctx) => mount(renderIssueDetail(P(ctx).slug, P(ctx).repo, ctx.params.number)));
 route('/o/:slug/:repo/issues', (ctx) => mount(renderIssueList(P(ctx).slug, P(ctx).repo, ctx.query)));
+route('/o/:slug/:repo/releases/new', requireAuth((ctx) => mount(renderNewRelease(P(ctx).slug, P(ctx).repo))));
+route('/o/:slug/:repo/releases/:tag', (ctx) => mount(renderReleaseDetail(P(ctx).slug, P(ctx).repo, ctx.params.tag)));
+route('/o/:slug/:repo/releases', (ctx) => mount(renderReleases(P(ctx).slug, P(ctx).repo)));
 route('/o/:slug/:repo/labels', requireAuth((ctx) => mount(renderLabels(P(ctx).slug, P(ctx).repo))));
 route('/o/:slug/:repo/milestones', requireAuth((ctx) => mount(renderMilestones(P(ctx).slug, P(ctx).repo))));
 route('/inbox', requireAuth((ctx) => mount(renderInbox(ctx.query))));

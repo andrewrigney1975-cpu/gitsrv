@@ -33,7 +33,10 @@ public sealed class GitStorage(GitStorageOptions options, ILogger<GitStorage> lo
     {
         var path = RepoPath(orgId, repoId);
         if (Directory.Exists(path))
+        {
+            WriteHooks(path); // keep hook scripts current across upgrades
             return;
+        }
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var branch = string.IsNullOrWhiteSpace(defaultBranch) ? "main" : defaultBranch;
@@ -42,8 +45,63 @@ public sealed class GitStorage(GitStorageOptions options, ILogger<GitStorage> lo
         // Allow partial-clone filters (harmless now, used from Phase 10) and keep gc quiet on push.
         await RunAsync("git", ["-C", path, "config", "uploadpack.allowFilter", "true"], null, ct);
         await RunAsync("git", ["-C", path, "config", "receive.denyNonFastForwards", "false"], null, ct);
+        WriteHooks(path);
         logger.LogInformation("Initialised bare repo {Path}", path);
     }
+
+    /// <summary>(Re)writes the pre-receive / post-receive hooks. Idempotent; call on ensure and on upgrade.</summary>
+    public void WriteHooks(string repoDir)
+    {
+        var hooks = Path.Combine(repoDir, "hooks");
+        Directory.CreateDirectory(hooks);
+        WriteExecutable(Path.Combine(hooks, "pre-receive"), PreReceiveHook);
+        WriteExecutable(Path.Combine(hooks, "post-receive"), PostReceiveHook);
+    }
+
+    public void EnsureHooks(long orgId, long repoId)
+    {
+        var path = RepoPath(orgId, repoId);
+        if (Directory.Exists(path)) WriteHooks(path);
+    }
+
+    private static void WriteExecutable(string file, string contents)
+    {
+        File.WriteAllText(file, contents.Replace("\r\n", "\n"));
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+    }
+
+    // The hook process inherits GITSRV_API_BASE / GITSRV_INTERNAL_TOKEN / GITSRV_REPO_ID /
+    // GITSRV_PUSHER_ID from whichever container ran receive-pack (api or ssh). No jq available in
+    // the api image, so the endpoints speak line-oriented plain text.
+    private const string PreReceiveHook = """
+        #!/bin/sh
+        updates=""
+        while read -r old new ref; do
+          updates="${updates}${old} ${new} ${ref}\n"
+        done
+        [ -z "$updates" ] && exit 0
+        resp=$(printf "%b" "$updates" | curl -s -m 15 -X POST \
+          "${GITSRV_API_BASE}/internal/hooks/pre-receive?repoId=${GITSRV_REPO_ID}&pusherId=${GITSRV_PUSHER_ID}" \
+          -H "X-Internal-Token: ${GITSRV_INTERNAL_TOKEN}" -H 'Content-Type: text/plain' --data-binary @-)
+        if [ $? -ne 0 ]; then echo "GitSrv: branch-policy service is unavailable; push rejected." >&2; exit 1; fi
+        if [ "$(printf '%s' "$resp" | head -n 1)" = "allow" ]; then exit 0; fi
+        printf '%s\n' "$resp" | tail -n +2 >&2
+        exit 1
+        """;
+
+    private const string PostReceiveHook = """
+        #!/bin/sh
+        updates=""
+        while read -r old new ref; do
+          updates="${updates}${old} ${new} ${ref}\n"
+        done
+        printf "%b" "$updates" | curl -s -m 15 -X POST \
+          "${GITSRV_API_BASE}/internal/hooks/post-receive?repoId=${GITSRV_REPO_ID}&pusherId=${GITSRV_PUSHER_ID}" \
+          -H "X-Internal-Token: ${GITSRV_INTERNAL_TOKEN}" -H 'Content-Type: text/plain' --data-binary @- >/dev/null 2>&1 || true
+        exit 0
+        """;
 
     public void Delete(long orgId, long repoId)
     {

@@ -85,6 +85,21 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   `ActivityEndpoints` (`/api/user/feed`, `/api/orgs/{slug}/activity`).
 - `mail` service (mailpit) in compose; UI on `MAIL_UI_PORT` (default 8025).
 
+## Advanced Git ops & branch policy (Phase 6)
+
+- `GitStorage.WriteHooks` installs `pre-receive` / `post-receive` shell scripts in every bare repo
+  (rewritten on every `EnsureAsync`). They inherit `GITSRV_API_BASE` / `GITSRV_INTERNAL_TOKEN` /
+  `GITSRV_REPO_ID` / `GITSRV_PUSHER_ID` from the container that ran receive-pack (api sets them in
+  `GitHttpEndpoints.Rpc`; ssh's `gitsrv-shell.sh` exports them) and POST line-oriented text to
+  `Endpoints/InternalHookEndpoints.cs`. Pre-receive → `BranchProtectionService.EvaluatePushAsync`
+  → `allow` / `deny\n<reason>`. Post-receive → activity + PR sync + `WebhookService.DeliverAsync`.
+- `Git/BranchOpsService.cs` — branch CRUD, cherry-pick, revert, edit/delete file, all via libgit2
+  ref updates (no worktree); they bypass receive-pack so they check protection directly.
+- `Git/ReleaseService.cs` — releases + annotated tags + assets on `{RepositoryRoot}/_assets/...`.
+- `Git/WebhookService.cs` — repo webhooks, HMAC-SHA256 `X-GitSrv-Signature-256`, `hook_deliveries` log.
+- PR merge additionally gates on `branch_protections.required_approvals` for the base branch.
+- Endpoints: `Endpoints/RepoAdvancedEndpoints.cs`.
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

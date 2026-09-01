@@ -71,6 +71,7 @@ public static class InternalSshEndpoints
                 absolutePath = target.AbsolutePath,
                 repoId = target.RepoId,
                 orgId = target.OrgId,
+                userId,
             });
         });
 

@@ -351,6 +351,22 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
                     ) latest WHERE state = 'request_changes'
                     """, new { id = pr.Id });
                 if (changesRequested > 0) throw new ValidationException("Changes have been requested and not yet resolved.");
+
+                var rule = await conn.QuerySingleOrDefaultAsync<int?>("""
+                    SELECT required_approvals FROM branch_protections
+                    WHERE repo_id = @repoId AND (@branch = pattern OR (position('*' in pattern) > 0))
+                    ORDER BY (pattern = @branch) DESC LIMIT 1
+                    """, new { repoId, branch = pr.BaseBranch });
+                if (rule is > 0)
+                {
+                    var approvals = await conn.ExecuteScalarAsync<int>("""
+                        SELECT count(*) FROM (
+                          SELECT DISTINCT ON (user_id) state FROM pr_reviews WHERE pr_id = @id ORDER BY user_id, created_at DESC
+                        ) latest WHERE state = 'approve'
+                        """, new { id = pr.Id });
+                    if (approvals < rule.Value)
+                        throw new ValidationException($"This branch requires {rule.Value} approval(s); it has {approvals}.");
+                }
             }
 
             var sig = new Signature(username, string.IsNullOrWhiteSpace(email) ? $"{username}@users.noreply.gitsrv" : email, DateTimeOffset.Now);

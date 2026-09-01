@@ -45,6 +45,92 @@ export function renderRepoSettings(slug, repoSlug) {
           navigate(`/o/${slug}`);
         }}, 'Delete this repository')));
 
+    // ---- repo config (default branch + merge methods) ----
+    const config = el('div', { class: 'card' }, el('h2', {}, 'Merge & branches'), form({
+      fields: [
+        { name: 'defaultBranch', label: 'Default branch', value: repo.defaultBranch },
+        { name: 'allowMergeCommit', label: 'Allow merge commits', type: 'select', value: String(repo.allowMergeCommit ?? true), options: yn() },
+        { name: 'allowSquash', label: 'Allow squash merging', type: 'select', value: String(repo.allowSquash ?? true), options: yn() },
+        { name: 'allowRebase', label: 'Allow rebase merging', type: 'select', value: String(repo.allowRebase ?? true), options: yn() },
+        { name: 'deleteBranchOnMerge', label: 'Delete head branch on merge', type: 'select', value: String(repo.deleteBranchOnMerge ?? true), options: yn() },
+      ],
+      submitLabel: 'Save',
+      onSubmit: async (v) => {
+        await api.patch(`${R(slug, repoSlug)}/config`, {
+          defaultBranch: v.defaultBranch,
+          allowMergeCommit: v.allowMergeCommit === 'true', allowSquash: v.allowSquash === 'true',
+          allowRebase: v.allowRebase === 'true', deleteBranchOnMerge: v.deleteBranchOnMerge === 'true',
+        });
+        toast('Saved.', 'ok');
+      },
+    }));
+
+    // ---- branch protection ----
+    const protections = el('div', { class: 'card' });
+    async function refreshProtections() {
+      const list = await api.get(`${R(slug, repoSlug)}/protections`);
+      protections.replaceChildren(
+        el('h2', {}, 'Branch protection'),
+        list.length ? el('table', { class: 'data-table' }, el('tbody', {}, ...list.map((p) => el('tr', {},
+          el('td', {}, el('code', {}, p.pattern)),
+          el('td', { class: 'muted' }, [
+            p.requirePullRequest && 'PR required',
+            p.requiredApprovals > 0 && `${p.requiredApprovals} approval(s)`,
+            p.blockForcePush && 'no force-push',
+            p.blockDeletion && 'no delete',
+            p.requireLinearHistory && 'linear',
+            p.restrictPush && 'maintainers only',
+          ].filter(Boolean).join(', ')),
+          el('td', { class: 'right' }, el('button', { class: 'small danger', onclick: async () => {
+            await api.del(`${R(slug, repoSlug)}/protections/${p.id}`); refreshProtections();
+          } }, 'Remove')))))) : el('p', { class: 'muted' }, 'No protected branches.'),
+        form({
+          fields: [
+            { name: 'pattern', label: 'Branch name or pattern', required: true, hint: "e.g. main or release/*" },
+            { name: 'requirePullRequest', label: 'Require a pull request', type: 'select', value: 'true', options: yn() },
+            { name: 'requiredApprovals', label: 'Required approvals', value: '0' },
+            { name: 'blockForcePush', label: 'Block force pushes', type: 'select', value: 'true', options: yn() },
+            { name: 'blockDeletion', label: 'Block deletion', type: 'select', value: 'true', options: yn() },
+            { name: 'requireLinearHistory', label: 'Require linear history', type: 'select', value: 'false', options: yn() },
+            { name: 'restrictPush', label: 'Restrict direct pushes to maintainers', type: 'select', value: 'false', options: yn() },
+          ],
+          submitLabel: 'Add rule',
+          onSubmit: async (v) => {
+            await api.post(`${R(slug, repoSlug)}/protections`, {
+              pattern: v.pattern, requirePullRequest: v.requirePullRequest === 'true',
+              requiredApprovals: +v.requiredApprovals || 0, requireStatusChecks: false,
+              blockForcePush: v.blockForcePush === 'true', blockDeletion: v.blockDeletion === 'true',
+              requireLinearHistory: v.requireLinearHistory === 'true', restrictPush: v.restrictPush === 'true',
+            });
+            refreshProtections();
+          },
+        }));
+    }
+    await refreshProtections();
+
+    // ---- webhooks ----
+    const hooks = el('div', { class: 'card' });
+    async function refreshHooks() {
+      const list = await api.get(`${R(slug, repoSlug)}/hooks`);
+      hooks.replaceChildren(
+        el('h2', {}, 'Webhooks'),
+        list.length ? el('table', { class: 'data-table' }, el('tbody', {}, ...list.map((h) => el('tr', {},
+          el('td', {}, el('code', {}, h.url), el('div', { class: 'muted' }, h.events)),
+          el('td', { class: 'right' }, el('button', { class: 'small danger', onclick: async () => {
+            await api.del(`${R(slug, repoSlug)}/hooks/${h.id}`); refreshHooks();
+          } }, 'Remove')))))) : el('p', { class: 'muted' }, 'No webhooks.'),
+        form({
+          fields: [
+            { name: 'url', label: 'Payload URL', required: true },
+            { name: 'secret', label: 'Secret', hint: 'HMAC-SHA256 signs X-GitSrv-Signature-256' },
+            { name: 'events', label: 'Events', value: 'push', hint: 'comma-separated: push,pull_request,issues' },
+          ],
+          submitLabel: 'Add webhook',
+          onSubmit: async (v) => { await api.post(`${R(slug, repoSlug)}/hooks`, { ...v, isActive: true }); refreshHooks(); },
+        }));
+    }
+    await refreshHooks();
+
     const access = el('div', { class: 'card' });
     async function refresh() {
       const a = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/collaborators`);
@@ -77,6 +163,8 @@ export function renderRepoSettings(slug, repoSlug) {
     }
     await refresh();
 
-    return shell(b, repo.defaultBranch, 'settings', el('div', { class: 'stack' }, settings, access));
+    return shell(b, repo.defaultBranch, 'settings', el('div', { class: 'stack' }, settings, config, protections, hooks, access));
   });
 }
+
+function yn() { return [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]; }

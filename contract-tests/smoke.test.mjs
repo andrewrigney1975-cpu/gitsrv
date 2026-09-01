@@ -25,5 +25,5 @@ test('/api/meta reports the running build', async () => {
   const { status, body } = await get('/api/meta');
   assert.equal(status, 200);
   assert.equal(body.name, 'GitSrv');
-  assert.equal(body.phase, 5);
+  assert.equal(body.phase, 6);
 });

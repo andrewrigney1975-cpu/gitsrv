@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { el, toast, timeAgo } from '../ui.js';
+import { el, toast, errorToast, timeAgo } from '../ui.js';
 import { navigate } from '../router.js';
 import { asyncView } from './_shared.js';
 import { highlight } from '../features/highlight.js';
@@ -85,7 +85,10 @@ export function renderRepoCode(slug, repoSlug, refName, path) {
     const body = el('div', { class: 'stack' },
       el('div', { class: 'repo-toolbar' },
         branchPicker(b, ov.refs, currentRef, 'tree', path),
-        breadcrumb(b, currentRef, tree.path || path || '')),
+        breadcrumb(b, currentRef, tree.path || path || ''),
+        el('span', { class: 'spacer' }),
+        el('a', { class: 'btn-link', href: `#/o/${b.orgSlug}/${b.repoSlug}/releases` },
+          `Releases${ov.refs.tags.length ? ' · ' + ov.refs.tags.length : ''}`)),
       languages && languages.length ? languageBar(languages) : null,
       treeTable(b, currentRef, tree),
       tree.commit && lastCommitLine(b, tree.commit),
@@ -163,11 +166,31 @@ export function renderRepoBlob(slug, repoSlug, refName, path) {
     const blob = res.blob;
 
     const rawUrl = `/api/orgs/${slug}/repos/${repoSlug}/browse/raw/${enc(refName)}/${path}`;
+    const canWrite = ['write', 'maintain', 'admin'].includes(b.myPermission);
     const actions = el('div', { class: 'file-actions' },
       el('span', { class: 'muted mono' }, `${fmtBytes(blob.size)}`),
       el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/blame/${enc(refName)}/${path}` }, 'Blame'),
       el('a', { href: `#/o/${b.orgSlug}/${b.repoSlug}/commits/${enc(refName)}?path=${enc(path)}` }, 'History'),
-      el('a', { href: rawUrl, target: '_blank', rel: 'noopener' }, 'Raw'));
+      el('a', { href: rawUrl, target: '_blank', rel: 'noopener' }, 'Raw'),
+      canWrite && !blob.isBinary && !blob.isTruncated && el('button', { class: 'small', onclick: () => openEditor() }, 'Edit'));
+
+    function openEditor() {
+      const ta = el('textarea', { class: 'file-editor', rows: Math.min(40, (blob.text.match(/\n/g) || []).length + 3) });
+      ta.value = blob.text;
+      const msg = el('input', { type: 'text', placeholder: `Update ${path}` });
+      const editorCard = el('div', { class: 'card' }, ta, el('div', { class: 'row' }, msg,
+        el('button', { class: 'primary small', onclick: async () => {
+          try {
+            await api.post(`/api/orgs/${slug}/repos/${repoSlug}/edit`, {
+              branch: refName, path, content: ta.value, message: msg.value, expectedBlobSha: blob.sha,
+            });
+            toast('Committed.', 'ok');
+            navigate(`/o/${b.orgSlug}/${b.repoSlug}/blob/${enc(refName)}/${path}`);
+          } catch (err) { errorToast(err); }
+        } }, 'Commit change'),
+        el('button', { class: 'small', onclick: () => navigate(`/o/${b.orgSlug}/${b.repoSlug}/blob/${enc(refName)}/${path}`) }, 'Cancel')));
+      document.querySelector('.codeview')?.closest('.card')?.replaceWith(editorCard);
+    }
 
     let content;
     if (blob.isBinary) {
