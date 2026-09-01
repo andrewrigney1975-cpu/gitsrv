@@ -20,14 +20,19 @@ public static class AuthEndpoints
             return Results.Json(Me(auth!.User));
         });
 
-        g.MapPost("/login", async (LoginRequest req, AccountService accounts, HttpContext ctx, CancellationToken ct) =>
+        g.MapPost("/login", async (LoginRequest req, AccountService accounts, Ops.AuditService audit, HttpContext ctx, CancellationToken ct) =>
         {
             var auth = await accounts.AuthenticateAsync(req.UsernameOrEmail ?? "", req.Password ?? "", UserAgent(ctx), ct);
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
             if (auth is null)
+            {
+                await audit.LogAsync(null, null, req.UsernameOrEmail ?? "", "login.failed", "", "", ip, ct);
                 return Results.Json(new { error = "Incorrect username or password." }, statusCode: 401);
+            }
+            await audit.LogAsync(null, auth.User.Id, auth.User.Username, "login", "", "", ip, ct);
             HttpAuth.SetSessionCookies(ctx.Response, auth, cookiesSecure);
             return Results.Json(Me(auth.User));
-        });
+        }).RequireRateLimiting("auth");
 
         g.MapPost("/refresh", async (AccountService accounts, HttpContext ctx, CancellationToken ct) =>
         {

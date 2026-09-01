@@ -158,6 +158,19 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   dynamic `import()`.
 - Opt-in load probe: `contract-tests/load.test.mjs` (`GITSRV_LOAD=1`).
 
+## Security & ops (Phase 11)
+
+- `Ops/AuditService.cs` — `audit_events`, org-scoped; `Ops/UrlGuard.EnsureSafe` — SSRF guard
+  (loopback/private/link-local/169.254.169.254 blocked; `host.docker.internal` and
+  `GitSrv:AllowPrivateWebhookHosts=true` are escape hatches) used by WebhookService + EnklrService.
+- `Endpoints/OpsEndpoints.cs` — `GET /metrics` (Prometheus text), `/api/orgs/{slug}/audit`
+  (+ `?format=csv`), `/api/admin/*` (site-admin filter). nginx proxies `/metrics`.
+- Rate limiter: `"auth"` policy on `POST /api/auth/login` only (30/min per IP — register is NOT
+  limited so test suites can bulk-register). `UseForwardedHeaders` for real client IP.
+- Registration honoured via `instance_settings.registration_open` (first user always allowed).
+- `scripts/backup.sh` / `scripts/restore.sh` (pg_dump -Fc + git-data volume tar; `hostpath()`
+  handles Windows git-bash). `deploy/docker-compose.prod.yml` — Caddy TLS overlay.
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

@@ -25,6 +25,14 @@ public sealed class AccountService(Db db, PasswordHasher hasher, TokenService to
 
         await using var conn = await db.OpenAsync(ct);
 
+        // The first account is always allowed; after that, respect the registration_open flag.
+        var isFirstEarly = !await conn.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM users)");
+        if (!isFirstEarly)
+        {
+            var open = await conn.ExecuteScalarAsync<string?>("SELECT value FROM instance_settings WHERE key = 'registration_open'");
+            if (open == "false") throw new ForbiddenException("Registration is closed on this instance.");
+        }
+
         if (await conn.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM users WHERE username = @username)", new { username }))
             throw new ValidationException("That username is taken.");
         if (await conn.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM users WHERE email = @email)", new { email }))

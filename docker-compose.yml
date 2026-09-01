@@ -39,6 +39,8 @@ services:
       Smtp__Host: "mail"
       Smtp__Port: "1025"
       Smtp__From: "gitsrv@localhost"
+      # host.docker.internal is always allowed; set this only if you also need raw private IPs.
+      GitSrv__AllowPrivateWebhookHosts: "${ALLOW_PRIVATE_WEBHOOK_HOSTS:-false}"
       App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
       ASPNETCORE_URLS: "http://+:8080"
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}

@@ -46,7 +46,7 @@ public sealed class EnklrService(Db db, IHttpClientFactory http, ILogger<EnklrSe
     public async Task<long> ConnectAsync(long orgId, long userId, string baseUrl, string workspace, string apiToken,
         string inboundSecret, string cardPrefix, CancellationToken ct)
     {
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out _)) throw new ValidationException("Enter a valid Enklr base URL.");
+        Ops.UrlGuard.EnsureSafe(baseUrl);
         cardPrefix = string.IsNullOrWhiteSpace(cardPrefix) ? "ENK" : cardPrefix.Trim().ToUpperInvariant();
         await using var conn = await db.OpenAsync(ct);
         return await conn.ExecuteScalarAsync<long>("""

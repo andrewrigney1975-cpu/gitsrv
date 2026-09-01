@@ -11,6 +11,20 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**All 12 phases complete.** GitSrv is a working multi-tenant Git platform: full Git over HTTP and
+SSH, repository browsing, pull requests with three-way compare, issues, notifications, branch
+protection, releases, webhooks, GitHub-flavoured CI, npm/OCI/generic package registries, an
+Enklr.app connector, and an ops surface (audit log, `/metrics`, admin console, backup/restore).
+**54 black-box contract tests + 46 unit tests**, all green on a clean-host install. See
+[`CHANGELOG.md`](CHANGELOG.md), [`docs/INSTALL.md`](docs/INSTALL.md),
+[`docs/UPGRADING.md`](docs/UPGRADING.md), [`docs/SECURITY.md`](docs/SECURITY.md).
+
+**Phase 11 — security, operability & release.** Org-scoped audit log with CSV export; per-IP rate
+limiting on login; SSRF guard on webhook/integration URLs (blocks loopback/private/metadata
+ranges); `GET /metrics` (Prometheus); an admin-console API (instance overview, user/org management,
+site-admin toggle, `registration_open` flag); `scripts/backup.sh` + `scripts/restore.sh` (verified
+drill); a Caddy TLS production overlay; install / upgrade / security docs.
+
 **Phase 10 — performance & scale hardening.** Rendered-Markdown cache (content-hashed,
 `IMemoryCache`, 64 MiB cap); strong ETag + `Cache-Control` on blob/raw reads (304 on match).
 Bare repos are created with reachability bitmaps, commit-graph and MIDX enabled; a

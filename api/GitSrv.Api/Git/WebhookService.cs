@@ -24,8 +24,7 @@ public sealed class WebhookService(Db db, IHttpClientFactory http, ILogger<Webho
 
     public async Task<long> CreateAsync(long repoId, string url, string secret, string events, bool active, CancellationToken ct)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https"))
-            throw new ValidationException("Enter a valid http(s) URL.");
+        Ops.UrlGuard.EnsureSafe(url);
         await using var conn = await db.OpenAsync(ct);
         return await conn.ExecuteScalarAsync<long>("""
             INSERT INTO repo_hooks (repo_id, url, secret, events, is_active) VALUES (@repoId, @url, @secret, @events, @active) RETURNING id

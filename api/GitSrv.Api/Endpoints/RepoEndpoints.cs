@@ -74,10 +74,11 @@ public static class RepoEndpoints
         });
 
         g.MapDelete("/", async (string slug, string repoSlug, CurrentUser cu,
-            OrgService orgs, RepoService repos, Authorizer authz, CancellationToken ct) =>
+            OrgService orgs, RepoService repos, Authorizer authz, Ops.AuditService audit, HttpContext ctx, CancellationToken ct) =>
         {
             var repo = await RequireRepoAsync(orgs, repos, authz, cu, slug, repoSlug, RepoPermission.Admin, ct);
             await repos.DeleteAsync(repo.OrgId, repo.Id, ct);
+            await audit.LogAsync(repo.OrgId, cu.RequireId(), cu.Username, "repo.delete", $"{slug}/{repoSlug}", "", ctx.Connection.RemoteIpAddress?.ToString() ?? "", ct);
             return Results.NoContent();
         });
 

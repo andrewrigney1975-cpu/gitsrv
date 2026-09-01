@@ -7,6 +7,7 @@ using GitSrv.Api.Git;
 using GitSrv.Api.Http;
 using GitSrv.Api.Identity;
 using GitSrv.Api.Migrations;
+using Microsoft.AspNetCore.HttpOverrides;
 using Npgsql;
 using Serilog;
 using Serilog.Formatting.Compact;
@@ -84,8 +85,27 @@ builder.Services.AddScoped<GitSrv.Api.Actions.ActionsService>();
 builder.Services.AddSingleton<GitSrv.Api.Packages.IArtifactStore, GitSrv.Api.Packages.LocalArtifactStore>();
 builder.Services.AddScoped<GitSrv.Api.Packages.PackageService>();
 builder.Services.AddScoped<GitSrv.Api.Integrations.EnklrService>();
+builder.Services.AddScoped<GitSrv.Api.Ops.AuditService>();
 builder.Services.AddHttpClient("webhook");
 builder.Services.AddHttpClient("enklr");
+
+GitSrv.Api.Ops.UrlGuard.AllowPrivateHosts = builder.Configuration.GetValue("GitSrv:AllowPrivateWebhookHosts", false);
+
+// Correct client IP behind the nginx proxy (for rate limiting + audit).
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("auth", ctx => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
+});
 builder.Services.AddSingleton<PrMergeService>();
 builder.Services.AddScoped<PullRequestService>();
 builder.Services.AddScoped<GitSrv.Api.Collab.NotificationService>();
@@ -108,6 +128,8 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+app.UseRateLimiter();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CsrfMiddleware>();
@@ -140,7 +162,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 10,
+    phase = 11,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -162,6 +184,7 @@ app.MapPackages(publicBaseUrl);
  app.MapEnklr();
 app.MapNpmRegistry(publicBaseUrl);
 app.MapOciRegistry();
+app.MapOps();
 var internalToken = builder.Configuration["GitSrv:InternalToken"] ?? "";
 app.MapInternalSsh(internalToken);
 app.MapInternalHooks(internalToken);

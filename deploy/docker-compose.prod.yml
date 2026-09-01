@@ -1,0 +1,36 @@
+# Production overlay:  docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d
+#
+# Adds a TLS-terminating Caddy proxy in front of `web` and removes the local-only conveniences.
+# Set in .env:  PUBLIC_BASE_URL=https://git.example.com  GITSRV_DOMAIN=git.example.com
+#               ASPNETCORE_ENVIRONMENT=Production  and real DB_PASSWORD / JWT_SIGNING_KEY / INTERNAL_TOKEN
+services:
+  api:
+    environment:
+      GitSrv__AllowPrivateWebhookHosts: "false"
+    ports: []           # never expose the API to the host
+
+  web:
+    ports: []           # only the proxy talks to web
+
+  mail:
+    ports: []
+
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      GITSRV_DOMAIN: ${GITSRV_DOMAIN:?set GITSRV_DOMAIN}
+    command: >
+      caddy reverse-proxy --from ${GITSRV_DOMAIN} --to web:80
+    depends_on:
+      - web
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

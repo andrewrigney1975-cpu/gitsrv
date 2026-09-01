@@ -64,10 +64,12 @@ public static class OrgEndpoints
             return Results.Json(await orgs.ListMembersAsync(org.Id, ct));
         });
 
-        g.MapPost("/{slug}/members", async (string slug, AddMemberRequest req, CurrentUser cu, OrgService orgs, Authorizer authz, CancellationToken ct) =>
+        g.MapPost("/{slug}/members", async (string slug, AddMemberRequest req, CurrentUser cu, OrgService orgs, Authorizer authz,
+            Ops.AuditService audit, HttpContext ctx, CancellationToken ct) =>
         {
             var org = await RequireOrgAsync(orgs, authz, cu, slug, OrgRole.Admin, ct);
             await orgs.AddMemberAsync(org.Id, req.Username ?? "", req.Role ?? "member", ct);
+            await audit.LogAsync(org.Id, cu.RequireId(), cu.Username, "member.add", req.Username ?? "", $"role={req.Role}", ctx.Connection.RemoteIpAddress?.ToString() ?? "", ct);
             return Results.NoContent();
         });
 
