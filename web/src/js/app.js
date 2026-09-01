@@ -18,6 +18,7 @@ import { renderPullList, renderNewPull, renderPullDetail } from './views/pulls.j
 import { renderIssueList, renderNewIssue, renderIssueDetail, renderLabels, renderMilestones } from './views/issues.js';
 import { renderInbox } from './views/inbox.js';
 import { renderPackages, renderPackageDetail } from './views/packages.js';
+import { renderOrgSettings } from './views/org-settings.js';
 import { renderReleases, renderNewRelease, renderReleaseDetail } from './views/releases.js';
 import { renderActionsList, renderActionRun } from './views/actions.js';
 
@@ -44,6 +45,7 @@ route('/o/:slug', requireAuth((ctx) => mount(renderOrg(ctx.params.slug))));
 route('/o/:slug/people', requireAuth((ctx) => mount(renderOrgPeople(ctx.params.slug))));
 route('/o/:slug/packages/:kind/:name', requireAuth((ctx) => mount(renderPackageDetail(ctx.params.slug, ctx.params.kind, ctx.params.name))));
 route('/o/:slug/packages', requireAuth((ctx) => mount(renderPackages(ctx.params.slug))));
+route('/o/:slug/settings', requireAuth((ctx) => mount(renderOrgSettings(ctx.params.slug))));
 route('/o/:slug/teams', requireAuth((ctx) => mount(renderOrgTeams(ctx.params.slug, null))));
 route('/o/:slug/teams/:teamSlug', requireAuth((ctx) => mount(renderOrgTeams(ctx.params.slug, ctx.params.teamSlug))));
 

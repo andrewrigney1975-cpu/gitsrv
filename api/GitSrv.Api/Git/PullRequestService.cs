@@ -32,7 +32,7 @@ public sealed record MergeStatus(bool Mergeable, bool HasConflicts, IReadOnlyLis
 
 public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseService browse, PrMergeService merger,
     Collab.IssueService issues, Collab.ActivityService activity, Collab.NotificationService notify,
-    Actions.ActionsService actions, IConfiguration config, ILogger<PullRequestService> logger)
+    Actions.ActionsService actions, Integrations.EnklrService enklr, IConfiguration config, ILogger<PullRequestService> logger)
 {
     // One merge/sync at a time per repo.
     private static readonly ConcurrentDictionary<long, SemaphoreSlim> RepoLocks = new();
@@ -102,8 +102,12 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
 
         // pull_request workflows
         var org = await browse.ResolveAsync(orgSlug, repoSlug, userId, ct);
+        var baseUrl = config["App:PublicBaseUrl"] ?? "http://localhost:8080";
         await actions.DispatchAsync(org.OrgId, orgSlug, repoSlug, repoId,
-            config["App:PublicBaseUrl"] ?? "http://localhost:8080", "pull_request", $"refs/heads/{baseBranch}", headSha, number, userId, ct);
+            baseUrl, "pull_request", $"refs/heads/{baseBranch}", headSha, number, userId, ct);
+
+        await enklr.LinkAndNotifyAsync(org.OrgId, repoId, "pull", $"#{number}", title.Trim(), "open",
+            $"{baseUrl}/#/o/{orgSlug}/{repoSlug}/pulls/{number}", $"{title} {body} {headBranch}", username, "pr_opened", ct);
 
         await notify.EnsureWatchAsync(repoId, userId, "auto", ct);
         var mentioned = await notify.ResolveMentionsAsync($"{title} {body}", ct);
@@ -404,6 +408,11 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
             var closingText = pr.Body + "\n" + CommitMessages(repoDir, pr);
             await activity.RecordAsync(userId, null, repoId, "pr_merged", number, $"{username} merged PR #{number}: {pr.Title}", ct);
             await issues.LinkAndMaybeCloseAsync(repoId, orgRepo.OrgSlug, orgRepo.RepoSlug, "pr", $"#{number}", closingText, applyClosings: true, userId, username, ct);
+
+            var orgId2 = await conn2.ExecuteScalarAsync<long>("SELECT org_id FROM repositories WHERE id = @repoId", new { repoId });
+            var mergeUrl = $"{config["App:PublicBaseUrl"] ?? "http://localhost:8080"}/#/o/{orgRepo.OrgSlug}/{orgRepo.RepoSlug}/pulls/{number}";
+            await enklr.LinkAndNotifyAsync(orgId2, repoId, "pull", $"#{number}", pr.Title, "merged", mergeUrl,
+                $"{pr.Title} {closingText} {pr.HeadBranch}", username, "pr_merged", ct);
         }
         finally
         {

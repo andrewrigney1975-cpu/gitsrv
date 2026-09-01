@@ -24,7 +24,7 @@ public sealed record ClaimedJob(long JobId, long RunId, int RunNumber, string Jo
     Dictionary<string, string> Secrets, Dictionary<string, string> Github, IReadOnlyList<ClaimedStep> Steps);
 
 public sealed class ActionsService(Db db, GitStorage storage, ChecksService checks, SecretsService secrets,
-    Collab.ActivityService activity, IConfiguration config, ILogger<ActionsService> logger)
+    Collab.ActivityService activity, Integrations.EnklrService enklr, IConfiguration config, ILogger<ActionsService> logger)
 {
     private readonly string _internalToken = config["GitSrv:InternalToken"] ?? "";
     private const string ApiInternalBase = "http://api:8080"; // reachable from the runner on the compose network
@@ -312,6 +312,18 @@ public sealed class ActionsService(Db db, GitStorage storage, ChecksService chec
             var runConclusion = anyFail ? "failure" : "success";
             await conn.ExecuteAsync("UPDATE workflow_runs SET status = 'completed', conclusion = @c, completed_at = now() WHERE id = @id",
                 new { c = runConclusion, id = run.Id });
+
+            // If this run's head sha belongs to an open PR, surface the CI verdict to Enklr.
+            if (run.PrNumber is { } prNum)
+            {
+                var orgSlug = await conn.QuerySingleAsync<string>(
+                    "SELECT o.slug FROM repositories r JOIN organisations o ON o.id = r.org_id WHERE r.id = @repoId", new { run.RepoId });
+                var orgId = await conn.ExecuteScalarAsync<long>("SELECT org_id FROM repositories WHERE id = @repoId", new { run.RepoId });
+                var repoSlug = await conn.ExecuteScalarAsync<string>("SELECT slug FROM repositories WHERE id = @repoId", new { run.RepoId });
+                var baseUrl = config["App:PublicBaseUrl"] ?? "http://localhost:8080";
+                await enklr.UpdateStateAsync(orgId, "pull", $"#{prNum}", runConclusion,
+                    $"{baseUrl}/#/o/{orgSlug}/{repoSlug}/pulls/{prNum}", ct);
+            }
         }
     }
 

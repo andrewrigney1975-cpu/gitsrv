@@ -83,7 +83,9 @@ builder.Services.AddScoped<GitSrv.Api.Actions.ChecksService>();
 builder.Services.AddScoped<GitSrv.Api.Actions.ActionsService>();
 builder.Services.AddSingleton<GitSrv.Api.Packages.IArtifactStore, GitSrv.Api.Packages.LocalArtifactStore>();
 builder.Services.AddScoped<GitSrv.Api.Packages.PackageService>();
+builder.Services.AddScoped<GitSrv.Api.Integrations.EnklrService>();
 builder.Services.AddHttpClient("webhook");
+builder.Services.AddHttpClient("enklr");
 builder.Services.AddSingleton<PrMergeService>();
 builder.Services.AddScoped<PullRequestService>();
 builder.Services.AddScoped<GitSrv.Api.Collab.NotificationService>();
@@ -136,7 +138,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 8,
+    phase = 9,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -155,6 +157,7 @@ app.MapActivity();
 var publicBaseUrl = builder.Configuration["App:PublicBaseUrl"] ?? "http://localhost:8080";
 app.MapActions(publicBaseUrl);
 app.MapPackages(publicBaseUrl);
+ app.MapEnklr();
 app.MapNpmRegistry(publicBaseUrl);
 app.MapOciRegistry();
 var internalToken = builder.Configuration["GitSrv:InternalToken"] ?? "";

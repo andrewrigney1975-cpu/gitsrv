@@ -11,6 +11,13 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 9 — Enklr.app integration.** GitSrv's side of the connector: per-org connection to an
+Enklr workspace; `ENK-123` card references in commits / branches / PRs are discovered, linked, and
+pushed to Enklr (`POST {base}/api/gitsrv/refs` and `/events`, bearer-authenticated) so a card shows
+its linked work and moves on merge. CI verdicts propagate to the card. Reverse direction: an
+HMAC-verified inbound webhook (`/api/integrations/enklr/{id}/events`). A `GET .../enklr/cards/{ref}`
+endpoint lets Enklr render the linked branches / PRs / status.
+
 **Phase 8 — package registry.** Org-scoped registries behind a storage abstraction
 (`IArtifactStore`, local-volume driver; S3 slots in later): an **npm** registry
 (`.npmrc` → `{base}/npm/{org}/`), an **OCI/Docker** registry (`/v2/`, blob upload flow, manifests,

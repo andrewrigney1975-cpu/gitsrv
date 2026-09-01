@@ -130,6 +130,19 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
   with `Host $http_host` (npm tarball URLs need the port).
 - Web: `views/packages.js`, Packages tab in `orgNav`.
 
+## Enklr integration (Phase 9)
+
+- `Integrations/EnklrService.cs` — per-org `enklr_connections`, `ENK-\d+` reference discovery,
+  `enklr_links` (a link per card×source), outbound push (`POST {base}/api/gitsrv/{refs|events}`,
+  `Authorization: Bearer {api_token}`), inbound HMAC verification (`X-Enklr-Signature-256`).
+- Wired from `PullRequestService.CreateAsync` / `MergeAsync` (pr_opened / pr_merged) and
+  `ActionsService.CompleteJobAsync` (CI verdict → `UpdateStateAsync`).
+- `Endpoints/EnklrEndpoints.cs`: `/api/orgs/{slug}/enklr` (admin), `.../enklr/cards/{ref}` (link
+  list for Enklr), `/api/integrations/enklr/{connectionId}/events` (inbound).
+- The Enklr-side card panel lives in the Enklr codebase, not here. Contract tests stub Enklr with
+  an in-process HTTP server reached via `host.docker.internal` (compose `extra_hosts`).
+- Web: `views/org-settings.js` (org Settings tab).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

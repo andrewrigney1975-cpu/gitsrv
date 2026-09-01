@@ -24,5 +24,6 @@ export function orgNav(slug, myRole) {
     tab(`/o/${slug}/packages`, 'Packages'),
     tab(`/o/${slug}/people`, 'People'),
     tab(`/o/${slug}/teams`, 'Teams'),
+    canAdmin && tab(`/o/${slug}/settings`, 'Settings'),
     canAdmin && el('span', { class: 'muted tab-hint' }, `you are ${myRole}`));
 }

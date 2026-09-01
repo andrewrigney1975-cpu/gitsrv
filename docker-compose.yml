@@ -44,6 +44,8 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
     volumes:
       - git-data:/var/lib/gitsrv/repositories
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the contract-test Enklr stub be reached
     depends_on:
       db:
         condition: service_healthy
