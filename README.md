@@ -11,6 +11,14 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
+**Phase 7 — GitSrv Actions (CI/CD).** A GitHub-Actions-flavoured subset: `.gitsrv/workflows/*.yml`
+with `on` (push / pull_request + branch filters), `jobs` with `runs-on` / `container` / `needs` /
+`env`, `strategy.matrix`, and `run` / `uses` (checkout) steps. Push and pull_request events dispatch
+runs; a poller container (`runner`) executes each job's steps in a scratch container over the host
+Docker socket, streams logs back, and posts a commit status per job. Repo and org secrets
+(AES-GCM at rest) are injected as env and masked in logs. Branch protection can require status
+checks — a PR's merge button then stays disabled until every check on the head sha is green.
+
 **Phase 6 — advanced Git ops & branch policy.** Branch protection (require PR, N approvals, block
 force-push/deletion, linear history, restrict direct pushes) enforced by a `pre-receive` hook in
 every bare repo that calls back to the API — so a protected `main` rejects a direct push over both

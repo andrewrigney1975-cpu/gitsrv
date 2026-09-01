@@ -45,6 +45,8 @@ jobs:
         env:
           GITSRV_BASE_URL: http://localhost:8080
           GITSRV_SSH_PORT: '2222'
+          GITSRV_MAIL_URL: http://localhost:8025
+          GITSRV_ACTIONS: '1'
         run: npm test
       - name: Tear down
         if: always()

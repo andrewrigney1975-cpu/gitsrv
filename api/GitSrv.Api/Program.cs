@@ -78,6 +78,9 @@ builder.Services.AddScoped<BranchProtectionService>();
 builder.Services.AddScoped<BranchOpsService>();
 builder.Services.AddScoped<ReleaseService>();
 builder.Services.AddScoped<WebhookService>();
+builder.Services.AddScoped<GitSrv.Api.Actions.SecretsService>();
+builder.Services.AddScoped<GitSrv.Api.Actions.ChecksService>();
+builder.Services.AddScoped<GitSrv.Api.Actions.ActionsService>();
 builder.Services.AddHttpClient("webhook");
 builder.Services.AddSingleton<PrMergeService>();
 builder.Services.AddScoped<PullRequestService>();
@@ -131,7 +134,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 6,
+    phase = 7,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -147,9 +150,12 @@ app.MapPullRequests();
 app.MapIssues();
 app.MapNotifications();
 app.MapActivity();
+var publicBaseUrl = builder.Configuration["App:PublicBaseUrl"] ?? "http://localhost:8080";
+app.MapActions(publicBaseUrl);
 var internalToken = builder.Configuration["GitSrv:InternalToken"] ?? "";
 app.MapInternalSsh(internalToken);
 app.MapInternalHooks(internalToken);
+app.MapRunner(internalToken, publicBaseUrl);
 
 // Git Smart-HTTP transport at the clone-URL root. Mapped last so its greedy /{org}/{repo}/… routes
 // don't shadow anything above.

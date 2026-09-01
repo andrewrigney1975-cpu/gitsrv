@@ -75,6 +75,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # GitSrv Actions runner. Executes job steps in scratch containers via the host Docker socket.
+  runner:
+    build:
+      context: .
+      dockerfile: runner/Dockerfile
+    environment:
+      GITSRV_API_BASE: "http://api:8080"
+      GITSRV_INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN must be set in .env}
+      GITSRV_RUNNER_ID: "runner-1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Job checkouts live here; step containers see the same files via --volumes-from.
+      - runner-work:/actions
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   ssh:
     build:
       context: .
@@ -94,3 +112,4 @@ services:
 volumes:
   db-data:
   git-data:
+  runner-work:

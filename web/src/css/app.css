@@ -301,3 +301,15 @@ button.good { border-color: var(--gs-good-fg); color: var(--gs-good-fg); backgro
 .feed { display: flex; flex-direction: column; gap: 4px; }
 .feed-row { font-size: 13px; }
 @media (max-width: 720px) { .issue-layout { grid-template-columns: 1fr; } }
+
+/* ===== actions ===== */
+.job-box { border: 1px solid var(--gs-border); border-radius: var(--gs-radius); margin-top: 10px; }
+.job-box > summary { padding: 10px 14px; cursor: pointer; }
+.steps { padding: 4px 14px; }
+.step-line { font-size: 13px; padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+.job-log { margin: 8px 14px 14px; padding: 12px; background: #12161c; color: #d6dbe0; border-radius: var(--gs-radius);
+  font-family: var(--gs-font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 480px; overflow: auto; }
+.checks-list { display: flex; flex-direction: column; gap: 4px; }
+.check-row { font-size: 13px; }
+.file-editor { width: 100%; font-family: var(--gs-font-mono); font-size: 12.5px; border: 1px solid var(--gs-border-strong);
+  border-radius: var(--gs-radius); background: var(--gs-input-bg); color: var(--gs-text); padding: 10px; }

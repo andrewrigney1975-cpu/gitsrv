@@ -40,7 +40,8 @@ public static class InternalHookEndpoints
         });
 
         g.MapPost("/post-receive", async (long repoId, long? pusherId, HttpContext ctx, Db db, GitStorage storage,
-            PullRequestService prs, WebhookService hooks, Collab.ActivityService activity, CancellationToken ct) =>
+            PullRequestService prs, WebhookService hooks, Collab.ActivityService activity,
+            Actions.ActionsService actions, IConfiguration cfg, CancellationToken ct) =>
         {
             using var reader = new StreamReader(ctx.Request.Body);
             var updates = Parse(await reader.ReadToEndAsync(ct));
@@ -63,6 +64,21 @@ public static class InternalHookEndpoints
 
             await prs.SyncAfterPushAsync(repoId, storage.RepoPath(meta.OrgId, repoId), ct);
 
+            var publicBaseUrl = cfg["App:PublicBaseUrl"] ?? "http://localhost:8080";
+            foreach (var u in updates.Where(u => u.Ref.StartsWith("refs/heads/") && !u.NewSha.All(c => c == '0')))
+            {
+                await actions.DispatchAsync(meta.OrgId, meta.OrgSlug, meta.RepoSlug, repoId, publicBaseUrl,
+                    "push", u.Ref, u.NewSha, null, pusherId, ct);
+
+                var branch = u.Ref["refs/heads/".Length..];
+                var openPrs = await conn.QueryAsync<PrRef>(
+                    "SELECT number, head_sha AS HeadSha FROM pull_requests WHERE repo_id = @repoId AND head_branch = @branch AND state = 'open'",
+                    new { repoId, branch });
+                foreach (var pr in openPrs)
+                    await actions.DispatchAsync(meta.OrgId, meta.OrgSlug, meta.RepoSlug, repoId, publicBaseUrl,
+                        "pull_request", u.Ref, pr.HeadSha, pr.Number, pusherId, ct);
+            }
+
             await hooks.DeliverAsync(repoId, "push", new
             {
                 repository = new { meta.OrgSlug, meta.RepoSlug },
@@ -75,4 +91,5 @@ public static class InternalHookEndpoints
     }
 
     private sealed record PushMeta(long OrgId, string OrgSlug, string RepoSlug);
+    private sealed record PrRef(int Number, string HeadSha);
 }

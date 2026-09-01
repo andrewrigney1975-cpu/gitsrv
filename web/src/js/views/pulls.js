@@ -115,6 +115,7 @@ export function renderPullDetail(slug, repoSlug, number) {
   async function build() {
     const res = await api.get(`${P(slug, repoSlug)}/${number}`);
     const d = res.detail;
+    const checks = res.checks || [];
     const myPerm = res.myPermission;
     const canWrite = ['write', 'maintain', 'admin'].includes(myPerm);
     const canComment = canWrite || myPerm === 'triage';
@@ -304,6 +305,11 @@ export function renderPullDetail(slug, repoSlug, number) {
       if (d.state === 'closed') return el('div', { class: 'card muted' }, 'This pull request is closed.');
       const m = d.merge;
       const box = el('div', { class: 'card merge-box' });
+      if (checks.length) {
+        box.append(el('div', { class: 'checks-list' }, ...checks.map((c) => el('div', { class: 'check-row' },
+          el('span', { class: `pill ${c.state === 'success' ? 'ok' : c.state === 'pending' ? 'pending' : 'bad'}` }, c.state),
+          ` ${c.context}`, c.description && el('span', { class: 'muted' }, ` — ${c.description}`)))));
+      }
       const notes = [];
       if (m.blockedByDraft) notes.push('Marked as a draft.');
       if (m.hasConflicts) notes.push(`Conflicts in ${m.conflictPaths.join(', ')}.`);

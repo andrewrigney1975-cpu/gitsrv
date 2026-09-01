@@ -30,6 +30,7 @@ export function shell(b, refName, section, body) {
       tab('commits', `${base}/commits/${enc(refName)}`, 'Commits'),
       tab('issues', `${base}/issues`, 'Issues'),
       tab('pulls', `${base}/pulls`, 'Pull requests'),
+      tab('actions', `${base}/actions`, 'Actions'),
       tab('graph', `${base}/graph`, 'Graph'),
       b.myPermission === 'admin' && tab('settings', `${base}/settings`, 'Settings')),
     body);

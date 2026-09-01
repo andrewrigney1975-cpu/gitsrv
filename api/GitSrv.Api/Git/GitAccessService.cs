@@ -25,7 +25,7 @@ public sealed class GitAccessService(Db db, Authorizer authz, GitStorage storage
     /// but the principal lacks the operation; returns null (not throw) when the repo is unreadable,
     /// so callers can 404 without disclosing existence.
     /// </summary>
-    public async Task<GitTarget?> ResolveAsync(string rawPath, long? userId, GitOperation op, CancellationToken ct)
+    public async Task<GitTarget?> ResolveAsync(string rawPath, long? userId, GitOperation op, CancellationToken ct, bool trusted = false)
     {
         var parts = rawPath.Trim('/').Split('/');
         if (parts.Length != 2)
@@ -64,9 +64,10 @@ public sealed class GitAccessService(Db db, Authorizer authz, GitStorage storage
             if (repo is null) return null;
         }
 
-        var have = userId is null
-            ? (repo.Visibility == "public" ? RepoPermission.Read : RepoPermission.None)
-            : await authz.GetRepoPermissionAsync(userId.Value, repo.Id, ct);
+        var have = trusted ? RepoPermission.Admin
+            : userId is null
+                ? (repo.Visibility == "public" ? RepoPermission.Read : RepoPermission.None)
+                : await authz.GetRepoPermissionAsync(userId.Value, repo.Id, ct);
 
         var need = op == GitOperation.Write ? RepoPermission.Write : RepoPermission.Read;
         if (have < need)

@@ -36,11 +36,12 @@ public static class PullRequestEndpoints
         });
 
         g.MapGet("/{number:int}", async (string slug, string repoSlug, int number,
-            CurrentUser cu, RepoBrowseService browse, PullRequestService prs, CancellationToken ct) =>
+            CurrentUser cu, RepoBrowseService browse, PullRequestService prs, Actions.ChecksService checks, CancellationToken ct) =>
         {
             var b = await browse.ResolveAsync(slug, repoSlug, cu.UserId, ct);
             var detail = await prs.GetAsync(b.RepoId, b.RepoDir, number, cu.UserId, ct);
-            return Results.Json(new { detail, myPermission = RepoPermissions.ToDbValue(b.Permission) });
+            var statuses = detail.Compare is null ? [] : await checks.ForShaAsync(b.RepoId, detail.HeadSha, ct);
+            return Results.Json(new { detail, checks = statuses, myPermission = RepoPermissions.ToDbValue(b.Permission) });
         });
 
         g.MapPost("/", async (string slug, string repoSlug, CreatePrRequest req,

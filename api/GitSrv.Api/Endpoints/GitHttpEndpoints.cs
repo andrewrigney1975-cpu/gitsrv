@@ -12,7 +12,7 @@ namespace GitSrv.Api.Endpoints;
 /// </summary>
 public static class GitHttpEndpoints
 {
-    internal sealed record Principal(long? UserId, bool CanRead, bool CanWrite);
+    internal sealed record Principal(long? UserId, bool CanRead, bool CanWrite, bool Trusted = false);
 
     public static void MapGitHttp(this IEndpointRouteBuilder app)
     {
@@ -28,7 +28,7 @@ public static class GitHttpEndpoints
                 return principal.UserId is null ? Challenge(ctx)
                     : Results.Text("Token scope does not permit this operation.", statusCode: 403);
 
-            var target = await access.ResolveAsync($"{org}/{repo}", principal.UserId, op, ct);
+            var target = await access.ResolveAsync($"{org}/{repo}", principal.UserId, op, ct, principal.Trusted);
             if (target is null)
                 return principal.UserId is null ? Challenge(ctx) : Results.NotFound();
 
@@ -62,7 +62,7 @@ public static class GitHttpEndpoints
             return principal.UserId is null ? Challenge(ctx)
                 : Results.Text("Token scope does not permit this operation.", statusCode: 403);
 
-        var target = await access.ResolveAsync($"{org}/{repo}", principal.UserId, op, ct);
+        var target = await access.ResolveAsync($"{org}/{repo}", principal.UserId, op, ct, principal.Trusted);
         if (target is null)
             return principal.UserId is null ? Challenge(ctx) : Results.NotFound();
 
@@ -103,8 +103,10 @@ public static class GitHttpEndpoints
     }
 
     // ---- Basic-auth resolution (registered in DI) ----
-    public sealed class GitAuthResolver(AccountService accounts, PatService pats)
+    public sealed class GitAuthResolver(AccountService accounts, PatService pats, IConfiguration config)
     {
+        private readonly string _internalToken = config["GitSrv:InternalToken"] ?? "";
+
         internal async Task<Principal> ResolveAsync(HttpContext ctx, CancellationToken ct)
         {
             // No credentials at all: allowed to *attempt* a read (GitAccessService enforces
@@ -130,6 +132,13 @@ public static class GitHttpEndpoints
             {
                 return rejected;
             }
+
+            // The Actions runner clones with the internal token — read-only, trusted (bypasses the
+            // per-repo permission check since the job was already authorised when it was queued).
+            if (user == "x-internal" && !string.IsNullOrEmpty(_internalToken)
+                && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(secret), System.Text.Encoding.UTF8.GetBytes(_internalToken)))
+                return new Principal(null, CanRead: true, CanWrite: false, Trusted: true);
 
             if (secret.StartsWith(PatService.Prefix, StringComparison.Ordinal))
             {

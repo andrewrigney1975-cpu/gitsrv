@@ -100,6 +100,24 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
 - PR merge additionally gates on `branch_protections.required_approvals` for the base branch.
 - Endpoints: `Endpoints/RepoAdvancedEndpoints.cs`.
 
+## GitSrv Actions (Phase 7)
+
+- `Actions/WorkflowParser.cs` (YamlDotNet) — GitHub-schema subset. `Actions/ActionsService.cs` —
+  dispatch (reads `.gitsrv/workflows/*.yml` from the head tree), matrix expansion, run/job/step
+  rows, the runner claim contract, log append, step/job/run completion → `ChecksService.SetAsync`.
+- Dispatch is triggered from `InternalHookEndpoints` post-receive (push, and pull_request for open
+  PRs on the pushed branch) and `PullRequestService.CreateAsync` (pull_request on open).
+- `runner/` container: `run.sh` polls `/internal/runner/claim`, clones via
+  `http://x-internal:<InternalToken>@api:8080/...` (GitAuthResolver honours that as a trusted
+  read), runs steps in a scratch container that shares the runner's `/actions` volume
+  (`--volumes-from`), does `${{ matrix.* }}` / `${{ secrets.* }}` / `${{ github.* }}` substitution,
+  masks secret values in logs. DooD via the mounted host socket — step containers get the socket
+  too (Phase 11 hardening item).
+- `Actions/SecretsService.cs` — AES-GCM under `GitSrv:SecretsKey` (falls back to the JWT key).
+- `Actions/ChecksService.cs` + `commit_statuses`; `PullRequestService.MergeAsync` gates on
+  `branch_protections.require_status_checks` (all statuses on head sha must be `success`).
+- Endpoints: `Endpoints/ActionsEndpoints.cs` (+ `RunnerEndpoints`).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

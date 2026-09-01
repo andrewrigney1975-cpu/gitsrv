@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { el, form, toast, errorToast, confirmDialog } from '../ui.js';
+import { el, form, toast, errorToast, confirmDialog, timeAgo } from '../ui.js';
 import { navigate } from '../router.js';
 import { asyncView } from './_shared.js';
 import { shell } from './repo.js';
@@ -131,6 +131,29 @@ export function renderRepoSettings(slug, repoSlug) {
     }
     await refreshHooks();
 
+    // ---- action secrets ----
+    const secretsCard = el('div', { class: 'card' });
+    async function refreshSecrets() {
+      const list = await api.get(`${R(slug, repoSlug)}/secrets`);
+      secretsCard.replaceChildren(
+        el('h2', {}, 'Action secrets'),
+        el('p', { class: 'muted' }, 'Injected as environment variables into workflow jobs and masked in logs.'),
+        list.length ? el('table', { class: 'data-table' }, el('tbody', {}, ...list.map((s) => el('tr', {},
+          el('td', {}, el('code', {}, s.name), el('span', { class: 'muted' }, ` updated ${timeAgo(s.updatedAt)}`)),
+          el('td', { class: 'right' }, el('button', { class: 'small danger', onclick: async () => {
+            await api.del(`${R(slug, repoSlug)}/secrets/${s.name}`); refreshSecrets();
+          } }, 'Remove')))))) : el('p', { class: 'muted' }, 'No secrets.'),
+        form({
+          fields: [
+            { name: 'name', label: 'Name', required: true, hint: 'UPPER_SNAKE_CASE' },
+            { name: 'value', label: 'Value', type: 'password', required: true },
+          ],
+          submitLabel: 'Save secret',
+          onSubmit: async (v) => { await api.put(`${R(slug, repoSlug)}/secrets`, v); toast('Secret saved.', 'ok'); refreshSecrets(); },
+        }));
+    }
+    await refreshSecrets();
+
     const access = el('div', { class: 'card' });
     async function refresh() {
       const a = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/collaborators`);
@@ -163,7 +186,7 @@ export function renderRepoSettings(slug, repoSlug) {
     }
     await refresh();
 
-    return shell(b, repo.defaultBranch, 'settings', el('div', { class: 'stack' }, settings, config, protections, hooks, access));
+    return shell(b, repo.defaultBranch, 'settings', el('div', { class: 'stack' }, settings, config, protections, secretsCard, hooks, access));
   });
 }
 

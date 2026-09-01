@@ -18,6 +18,7 @@ import { renderPullList, renderNewPull, renderPullDetail } from './views/pulls.j
 import { renderIssueList, renderNewIssue, renderIssueDetail, renderLabels, renderMilestones } from './views/issues.js';
 import { renderInbox } from './views/inbox.js';
 import { renderReleases, renderNewRelease, renderReleaseDetail } from './views/releases.js';
+import { renderActionsList, renderActionRun } from './views/actions.js';
 
 initThemeToggle();
 
@@ -59,6 +60,8 @@ route('/o/:slug/:repo/issues', (ctx) => mount(renderIssueList(P(ctx).slug, P(ctx
 route('/o/:slug/:repo/releases/new', requireAuth((ctx) => mount(renderNewRelease(P(ctx).slug, P(ctx).repo))));
 route('/o/:slug/:repo/releases/:tag', (ctx) => mount(renderReleaseDetail(P(ctx).slug, P(ctx).repo, ctx.params.tag)));
 route('/o/:slug/:repo/releases', (ctx) => mount(renderReleases(P(ctx).slug, P(ctx).repo)));
+route('/o/:slug/:repo/actions/:number', (ctx) => mount(renderActionRun(P(ctx).slug, P(ctx).repo, ctx.params.number)));
+route('/o/:slug/:repo/actions', (ctx) => mount(renderActionsList(P(ctx).slug, P(ctx).repo)));
 route('/o/:slug/:repo/labels', requireAuth((ctx) => mount(renderLabels(P(ctx).slug, P(ctx).repo))));
 route('/o/:slug/:repo/milestones', requireAuth((ctx) => mount(renderMilestones(P(ctx).slug, P(ctx).repo))));
 route('/inbox', requireAuth((ctx) => mount(renderInbox(ctx.query))));

@@ -32,7 +32,7 @@ public sealed record MergeStatus(bool Mergeable, bool HasConflicts, IReadOnlyLis
 
 public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseService browse, PrMergeService merger,
     Collab.IssueService issues, Collab.ActivityService activity, Collab.NotificationService notify,
-    ILogger<PullRequestService> logger)
+    Actions.ActionsService actions, IConfiguration config, ILogger<PullRequestService> logger)
 {
     // One merge/sync at a time per repo.
     private static readonly ConcurrentDictionary<long, SemaphoreSlim> RepoLocks = new();
@@ -40,6 +40,7 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
 
     private sealed record RepoMergeCfg(bool AllowMergeCommit, bool AllowSquash, bool AllowRebase, bool DeleteBranchOnMerge);
     private sealed record OrgRepoSlugs(string OrgSlug, string RepoSlug);
+    private sealed record ProtRule(int RequiredApprovals, bool RequireStatusChecks);
 
     private static string CommitMessages(string repoDir, PrRow pr)
     {
@@ -98,6 +99,12 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
         }, ct);
 
         await activity.RecordAsync(userId, null, repoId, "pr_opened", number, $"{username} opened PR #{number}: {title.Trim()}", ct);
+
+        // pull_request workflows
+        var org = await browse.ResolveAsync(orgSlug, repoSlug, userId, ct);
+        await actions.DispatchAsync(org.OrgId, orgSlug, repoSlug, repoId,
+            config["App:PublicBaseUrl"] ?? "http://localhost:8080", "pull_request", $"refs/heads/{baseBranch}", headSha, number, userId, ct);
+
         await notify.EnsureWatchAsync(repoId, userId, "auto", ct);
         var mentioned = await notify.ResolveMentionsAsync($"{title} {body}", ct);
         await notify.NotifyAsync(mentioned, userId, repoId, "pull", number, title.Trim(), "mention", body ?? "", $"#/o/{orgSlug}/{repoSlug}/pulls/{number}", ct);
@@ -352,20 +359,28 @@ public sealed class PullRequestService(Db db, Authorizer authz, RepoBrowseServic
                     """, new { id = pr.Id });
                 if (changesRequested > 0) throw new ValidationException("Changes have been requested and not yet resolved.");
 
-                var rule = await conn.QuerySingleOrDefaultAsync<int?>("""
-                    SELECT required_approvals FROM branch_protections
+                var rule = await conn.QuerySingleOrDefaultAsync<ProtRule>("""
+                    SELECT required_approvals AS RequiredApprovals, require_status_checks AS RequireStatusChecks
+                    FROM branch_protections
                     WHERE repo_id = @repoId AND (@branch = pattern OR (position('*' in pattern) > 0))
                     ORDER BY (pattern = @branch) DESC LIMIT 1
                     """, new { repoId, branch = pr.BaseBranch });
-                if (rule is > 0)
+                if (rule is { RequiredApprovals: > 0 })
                 {
                     var approvals = await conn.ExecuteScalarAsync<int>("""
                         SELECT count(*) FROM (
                           SELECT DISTINCT ON (user_id) state FROM pr_reviews WHERE pr_id = @id ORDER BY user_id, created_at DESC
                         ) latest WHERE state = 'approve'
                         """, new { id = pr.Id });
-                    if (approvals < rule.Value)
-                        throw new ValidationException($"This branch requires {rule.Value} approval(s); it has {approvals}.");
+                    if (approvals < rule.RequiredApprovals)
+                        throw new ValidationException($"This branch requires {rule.RequiredApprovals} approval(s); it has {approvals}.");
+                }
+                if (rule is { RequireStatusChecks: true })
+                {
+                    var total = await conn.ExecuteScalarAsync<int>("SELECT count(*)::int FROM commit_statuses WHERE repo_id = @repoId AND sha = @sha", new { repoId, sha = pr.HeadSha });
+                    var green = await conn.ExecuteScalarAsync<int>("SELECT count(*)::int FROM commit_statuses WHERE repo_id = @repoId AND sha = @sha AND state = 'success'", new { repoId, sha = pr.HeadSha });
+                    if (total == 0 || total != green)
+                        throw new ValidationException($"Status checks are not all passing ({green}/{total}).");
                 }
             }
 
