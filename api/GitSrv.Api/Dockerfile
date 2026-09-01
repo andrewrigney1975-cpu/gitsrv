@@ -13,6 +13,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
+# The bare-repo volume is shared with the ssh container; both write to it. The aspnet image's
+# built-in "app" user is uid 1654 — the ssh container creates its "git" user with the same uid so
+# on-disk ownership lines up. Pre-owning the mount point means the named volume inherits it.
+RUN mkdir -p /var/lib/gitsrv/repositories && chown -R app:app /var/lib/gitsrv
 EXPOSE 8080
 USER app
 ENTRYPOINT ["dotnet", "GitSrv.Api.dll"]

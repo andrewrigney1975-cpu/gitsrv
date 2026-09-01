@@ -66,6 +66,14 @@ public static class RepoEndpoints
             return Results.NoContent();
         });
 
+        g.MapDelete("/", async (string slug, string repoSlug, CurrentUser cu,
+            OrgService orgs, RepoService repos, Authorizer authz, CancellationToken ct) =>
+        {
+            var repo = await RequireRepoAsync(orgs, repos, authz, cu, slug, repoSlug, RepoPermission.Admin, ct);
+            await repos.DeleteAsync(repo.OrgId, repo.Id, ct);
+            return Results.NoContent();
+        });
+
         // ---- collaborators & team access ----
         g.MapGet("/collaborators", async (string slug, string repoSlug, CurrentUser cu, OrgService orgs,
             RepoService repos, Authorizer authz, Db db, CancellationToken ct) =>

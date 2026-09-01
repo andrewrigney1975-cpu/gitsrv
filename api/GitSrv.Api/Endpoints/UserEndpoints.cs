@@ -51,5 +51,26 @@ public static class UserEndpoints
             await keys.RemoveAsync(cu.RequireId(), id, ct);
             return Results.NoContent();
         });
+
+        // ---- personal access tokens ----
+        me.MapGet("/tokens", async (CurrentUser cu, PatService pats, CancellationToken ct) =>
+            Results.Json(await pats.ListAsync(cu.RequireId(), ct)));
+
+        me.MapPost("/tokens", async (CreateTokenRequest req, CurrentUser cu, PatService pats, CancellationToken ct) =>
+        {
+            DateTime? expires = req.ExpiresInDays is > 0 ? DateTime.UtcNow.AddDays(req.ExpiresInDays.Value) : null;
+            var (summary, token) = await pats.CreateAsync(cu.RequireId(), req.Name ?? "",
+                req.ScopeRead ?? true, req.ScopeWrite ?? true, expires, ct);
+            // The raw token is returned exactly once.
+            return Results.Json(new { token, summary }, statusCode: 201);
+        });
+
+        me.MapDelete("/tokens/{id:long}", async (long id, CurrentUser cu, PatService pats, CancellationToken ct) =>
+        {
+            await pats.RevokeAsync(cu.RequireId(), id, ct);
+            return Results.NoContent();
+        });
     }
+
+    public sealed record CreateTokenRequest(string Name, bool? ScopeRead, bool? ScopeWrite, int? ExpiresInDays);
 }

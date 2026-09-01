@@ -98,6 +98,22 @@ public sealed class AccountService(Db db, PasswordHasher hasher, TokenService to
         await conn.ExecuteAsync("UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = @hash AND revoked_at IS NULL", new { hash });
     }
 
+    /// <summary>Password check with no session side effects — for HTTP Basic auth on the git transport.</summary>
+    public async Task<User?> VerifyCredentialsAsync(string usernameOrEmail, string password, CancellationToken ct)
+    {
+        var key = usernameOrEmail.Trim().ToLowerInvariant();
+        await using var conn = await db.OpenAsync(ct);
+        var row = await conn.QuerySingleOrDefaultAsync<UserRow>(
+            """
+            SELECT id, username, email, display_name AS DisplayName, password_hash AS PasswordHash,
+                   is_site_admin AS IsSiteAdmin, created_at AS CreatedAt
+            FROM users WHERE username = @key OR email = @key
+            """, new { key });
+        if (row is null || !hasher.Verify(password, row.PasswordHash))
+            return null;
+        return new User(row.Id, row.Username, row.Email, row.DisplayName, row.IsSiteAdmin, row.CreatedAt);
+    }
+
     public async Task<User?> GetAsync(long id, CancellationToken ct)
     {
         await using var conn = await db.OpenAsync(ct);

@@ -7,7 +7,9 @@ export function renderRepo(slug, repoSlug) {
   return asyncView(async () => {
     const repo = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/`);
     const canAdmin = repo.myPermission === 'admin';
-    const cloneUrl = `${location.origin}/${repo.orgSlug}/${repo.slug}.git`;
+    const httpUrl = `${location.origin}/${repo.orgSlug}/${repo.slug}.git`;
+    const sshHost = location.hostname;
+    const sshUrl = `git@${sshHost}:${repo.orgSlug}/${repo.slug}.git`;
 
     const wrap = el('div', { class: 'stack' });
     wrap.append(el('div', { class: 'page-head' },
@@ -18,12 +20,15 @@ export function renderRepo(slug, repoSlug) {
         el('span', { class: `pill vis-${repo.visibility}` }, repo.visibility),
         el('span', { class: 'pill' }, `you: ${repo.myPermission}`))));
 
+    const cloneRow = (label, cmd) => el('div', { class: 'clone-row' },
+      el('span', { class: 'muted mono', style: 'min-width:3.5em' }, label),
+      el('code', {}, cmd),
+      el('button', { class: 'small', onclick: () => { navigator.clipboard?.writeText(cmd); toast('Copied.', 'ok'); } }, 'Copy'));
     wrap.append(el('div', { class: 'card' },
       el('h2', {}, 'Clone'),
-      el('p', { class: 'muted' }, 'Git transport arrives in Phase 2 — this URL will be live then.'),
-      el('div', { class: 'clone-row' },
-        el('code', {}, `git clone ${cloneUrl}`),
-        el('button', { class: 'small', onclick: () => { navigator.clipboard?.writeText(`git clone ${cloneUrl}`); toast('Copied.', 'ok'); } }, 'Copy'))));
+      cloneRow('HTTPS', `git clone ${httpUrl}`),
+      cloneRow('SSH', `git clone ${sshUrl}`),
+      el('p', { class: 'muted' }, 'HTTPS: use your username and a personal access token as the password. SSH: add a public key in Settings.')));
 
     if (canAdmin) {
       wrap.append(settingsCard());

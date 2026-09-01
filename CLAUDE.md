@@ -28,6 +28,19 @@ loads the facts from the DB and is the ONLY place endpoints ask "can this user d
 never query membership tables directly. Dapper maps snake_case→PascalCase constructor params via
 `Data/DapperSetup.cs` (register new DB record types there).
 
+## Git transport (Phase 2)
+
+- On-disk: bare repos at `{RepositoryRoot}/{orgId}/{repoId}.git` — keyed by id so renames never
+  move a directory. `Git/GitStorage.cs` owns creation (idempotent `EnsureAsync`, self-heals) /
+  deletion / size. The api and ssh containers share the `git-data` volume; both run as uid 1654.
+- HTTP: `Endpoints/GitHttpEndpoints.cs` at the clone-URL root (`/{org}/{repo}.git/...`), streamed
+  through `Git/GitBackend.cs`. nginx routes `~ \.git` there with buffering off.
+- SSH: `ssh/` container. sshd `AuthorizedKeysCommand` → `/internal/ssh/authorized-keys`; forced
+  command `gitsrv-shell` → `/internal/ssh/authorize` (shared-secret `X-Internal-Token`, set by
+  `INTERNAL_TOKEN`). Internal endpoints are network-only (no nginx route, no host port).
+- Both transports funnel through `Git/GitAccessService.ResolveAsync` for path resolution + authz.
+- PATs: `Auth/PatService.cs`, format `gsp_<64hex>`, sha256-hashed, scoped read/write.
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

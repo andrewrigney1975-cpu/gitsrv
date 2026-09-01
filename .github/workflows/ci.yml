@@ -25,6 +25,7 @@ jobs:
         run: |
           cp .env.example .env
           sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-test-password/' .env
+          sed -i 's/^INTERNAL_TOKEN=.*/INTERNAL_TOKEN=ci-internal-token/' .env
       - name: Build and start the stack
         run: docker compose up -d --build
       - name: Wait for health
@@ -41,6 +42,9 @@ jobs:
           node-version: '20'
       - name: Contract tests
         working-directory: contract-tests
+        env:
+          GITSRV_BASE_URL: http://localhost:8080
+          GITSRV_SSH_PORT: '2222'
         run: npm test
       - name: Tear down
         if: always()

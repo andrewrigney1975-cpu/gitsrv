@@ -11,13 +11,17 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
-**Phase 1 — identity.** Organisations, members (owner/admin/member), teams, repository records,
-per-repo collaborator and team grants, and the `PermissionResolver` authorization core. Argon2id
-passwords, JWT access + rotating refresh tokens in HttpOnly cookies, SSH public-key management,
-slug rename with 301 redirects. Web UI for sign-in/register, org switcher, org/people/teams admin,
-repo settings and access, and personal settings. Git transport itself is Phase 2.
+**Phase 2 — Git transport.** Full Git over HTTPS and SSH. Bare repos are created on the shared
+volume when a repo record is made (`{root}/{orgId}/{repoId}.git`, self-healing). Smart-HTTP
+(`info/refs`, `git-upload-pack`, `git-receive-pack`) streams straight through `git`; auth is HTTP
+Basic with a personal access token (scoped read/write) or the account password; anonymous
+fetch/clone works for public repos. The `ssh` container resolves keys and authorizes every
+operation through the API, so `git@host:org/repo.git` enforces the same `PermissionResolver` as
+HTTP. Per-push size limit and repo size accounting.
 
-Phase 0 delivered the four-container stack, SQL migration runner, design-token port and CI.
+Earlier phases: **1** — orgs, members, teams, repo records, collaborator/team grants, Argon2id
+passwords, JWT + refresh cookies, SSH key management, slug redirects, and the web admin UI. **0** —
+four-container stack, migration runner, design-token port, CI.
 
 ## Quick start
 

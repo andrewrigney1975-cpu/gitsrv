@@ -161,7 +161,8 @@ form.stack { gap: 12px; }
 .toast.bad { border-left-color: var(--gs-danger); }
 .toast.leaving { opacity: 0; transform: translateX(20px); }
 .modal-backdrop { position: fixed; inset: 0; background: var(--gs-overlay-backdrop); display: flex; align-items: center; justify-content: center; z-index: 60; }
-.modal { background: var(--gs-surface); border-radius: var(--gs-radius); padding: 20px; max-width: 380px; box-shadow: var(--gs-modal-shadow); }
+.modal { background: var(--gs-surface); border-radius: var(--gs-radius); padding: 20px; max-width: 440px; box-shadow: var(--gs-modal-shadow); }
+.token-reveal { display: block; margin: 12px 0; padding: 10px; background: var(--gs-surface-sunken); border-radius: var(--gs-radius); word-break: break-all; font-size: 12px; }
 
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
 h3 { font-size: .95rem; margin: 16px 0 6px; color: var(--gs-text-secondary); }

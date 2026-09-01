@@ -3,6 +3,7 @@ using GitSrv.Api.Auth;
 using GitSrv.Api.Authz;
 using GitSrv.Api.Data;
 using GitSrv.Api.Endpoints;
+using GitSrv.Api.Git;
 using GitSrv.Api.Http;
 using GitSrv.Api.Identity;
 using GitSrv.Api.Migrations;
@@ -55,14 +56,24 @@ builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton(new TokenOptions { SigningKey = builder.Configuration["Jwt:SigningKey"] ?? "" });
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<PasswordHasher>();
+builder.Services.AddSingleton(new GitStorageOptions
+{
+    RepositoryRoot = builder.Configuration["GitSrv:RepositoryRoot"] ?? "/var/lib/gitsrv/repositories",
+    MaxPushBytes = builder.Configuration.GetValue("GitSrv:MaxPushBytes", 512L * 1024 * 1024),
+});
+builder.Services.AddSingleton<GitStorage>();
+builder.Services.AddSingleton<GitBackend>();
 
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<Authorizer>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<PatService>();
 builder.Services.AddScoped<OrgService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddScoped<RepoService>();
 builder.Services.AddScoped<SshKeyService>();
+builder.Services.AddScoped<GitAccessService>();
+builder.Services.AddScoped<GitHttpEndpoints.GitAuthResolver>();
 
 builder.Services.AddHealthChecks();
 
@@ -100,7 +111,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 1,
+    phase = 2,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 
@@ -110,6 +121,11 @@ app.MapAuth(cookiesSecure);
 app.MapUsers();
 app.MapOrgs();
 app.MapRepos();
+app.MapInternalSsh(builder.Configuration["GitSrv:InternalToken"] ?? "");
+
+// Git Smart-HTTP transport at the clone-URL root. Mapped last so its greedy /{org}/{repo}/… routes
+// don't shadow anything above.
+app.MapGitHttp();
 
 app.Run();
 

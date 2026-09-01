@@ -2,16 +2,13 @@ using Dapper;
 using GitSrv.Api.Auth;
 using GitSrv.Api.Data;
 using GitSrv.Api.Domain;
+using GitSrv.Api.Git;
 
 namespace GitSrv.Api.Identity;
 
 public sealed record RepoSummary(long Id, string Slug, string Name, string Description, string Visibility, bool IsArchived);
 
-/// <summary>
-/// Phase 1: repository <em>records</em> only. Bare-repo creation on disk and the Git transports
-/// land in Phase 2 — <see cref="CreateAsync"/> gets a matching call there.
-/// </summary>
-public sealed class RepoService(Db db)
+public sealed class RepoService(Db db, GitStorage storage)
 {
     private static readonly string[] Visibilities = ["public", "internal", "private"];
 
@@ -38,6 +35,16 @@ public sealed class RepoService(Db db)
             RETURNING id
             """,
             new { orgId, slug, name = name.Trim(), description = description.Trim(), visibility, defaultBranch, creatorUserId });
+
+        try
+        {
+            await storage.EnsureAsync(orgId, id, defaultBranch, ct);
+        }
+        catch
+        {
+            await conn.ExecuteAsync("DELETE FROM repositories WHERE id = @id", new { id });
+            throw;
+        }
 
         return new Repository(id, orgId, slug, name.Trim(), description.Trim(), visibility, defaultBranch, false, creatorUserId, DateTime.UtcNow);
     }
@@ -91,6 +98,13 @@ public sealed class RepoService(Db db)
             WHERE id = @repoId
             """,
             new { repoId, name = name.Trim(), description = description.Trim(), visibility, isArchived });
+    }
+
+    public async Task DeleteAsync(long orgId, long repoId, CancellationToken ct)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        await conn.ExecuteAsync("DELETE FROM repositories WHERE id = @repoId", new { repoId });
+        storage.Delete(orgId, repoId);
     }
 
     public async Task RenameSlugAsync(long repoId, string newSlug, CancellationToken ct)
