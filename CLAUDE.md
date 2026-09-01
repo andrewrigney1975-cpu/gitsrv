@@ -19,6 +19,15 @@ Ordered SQL in `api/GitSrv.Api/Migrations/Sql/` (`001_init.sql`, `002_*.sql`, �
 Applied once each, in a transaction, recorded in `schema_migrations` with a checksum — **editing an
 applied migration file breaks start-up**; add a new file instead.
 
+## Authorization (Phase 1)
+
+`Authz/PermissionResolver.cs` is the pure, unit-tested core: given `RepoAccessFacts` (site-admin,
+org role, visibility, archived, direct + team grants) it returns an effective `RepoPermission`
+(None<Read<Triage<Write<Maintain<Admin) as the max across grant paths. `Authz/Authorizer.cs`
+loads the facts from the DB and is the ONLY place endpoints ask "can this user do X?" — endpoints
+never query membership tables directly. Dapper maps snake_case→PascalCase constructor params via
+`Data/DapperSetup.cs` (register new DB record types there).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

@@ -1,20 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Base URL of a running stack. CI and `docker compose up` both publish the web tier here.
 const BASE = process.env.GITSRV_BASE_URL ?? 'http://localhost:8080';
 
 async function get(path) {
   const res = await fetch(BASE + path, { headers: { Accept: 'application/json' } });
-  const body = await res.json();
-  return { status: res.status, body };
+  return { status: res.status, body: await res.json() };
 }
 
 test('web tier serves the app shell', async () => {
   const res = await fetch(BASE + '/');
   assert.equal(res.status, 200);
-  const html = await res.text();
-  assert.match(html, /GitSrv/);
+  assert.match(await res.text(), /GitSrv/);
 });
 
 test('/health reports the API and database up', async () => {
@@ -28,5 +25,5 @@ test('/api/meta reports the running build', async () => {
   const { status, body } = await get('/api/meta');
   assert.equal(status, 200);
   assert.equal(body.name, 'GitSrv');
-  assert.equal(body.phase, 0);
+  assert.equal(body.phase, 1);
 });

@@ -15,8 +15,7 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet restore api/GitSrv.sln
       - run: dotnet build api/GitSrv.sln -c Release --no-restore
-      - run: dotnet format api/GitSrv.sln --verify-no-changes --no-restore
-        continue-on-error: true
+      - run: dotnet test api/GitSrv.sln -c Release --no-build
 
   stack:
     runs-on: ubuntu-latest

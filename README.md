@@ -11,9 +11,13 @@ See [`docs/PLAN.md`](docs/PLAN.md) for the twelve-phase build plan.
 
 ## Status
 
-**Phase 0 — foundations & skeleton.** Four-container stack, SQL migration runner, design-token
-port, CI. The front end talks to the API talks to Postgres; `docker compose up` gives you a live
-status page.
+**Phase 1 — identity.** Organisations, members (owner/admin/member), teams, repository records,
+per-repo collaborator and team grants, and the `PermissionResolver` authorization core. Argon2id
+passwords, JWT access + rotating refresh tokens in HttpOnly cookies, SSH public-key management,
+slug rename with 301 redirects. Web UI for sign-in/register, org switcher, org/people/teams admin,
+repo settings and access, and personal settings. Git transport itself is Phase 2.
+
+Phase 0 delivered the four-container stack, SQL migration runner, design-token port and CI.
 
 ## Quick start
 

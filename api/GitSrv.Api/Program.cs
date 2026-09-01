@@ -1,4 +1,10 @@
-using System.Text.Json;
+using Dapper;
+using GitSrv.Api.Auth;
+using GitSrv.Api.Authz;
+using GitSrv.Api.Data;
+using GitSrv.Api.Endpoints;
+using GitSrv.Api.Http;
+using GitSrv.Api.Identity;
 using GitSrv.Api.Migrations;
 using Npgsql;
 using Serilog;
@@ -6,46 +12,67 @@ using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Structured JSON logs to stdout, captured via `docker compose logs api`. Every ILogger<T>
-// injection routes through this sink.
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console(new CompactJsonFormatter()));
 
-// Defence-in-depth against the checked-in dev placeholders reaching a real deployment. Development
-// is exempt so a zero-setup local run keeps working.
-if (!builder.Environment.IsDevelopment())
+var isDev = builder.Environment.IsDevelopment();
+
+if (!isDev)
 {
     const string placeholderSigningKey = "dev-only-signing-key-change-me-please-32chars-min";
     var signingKey = builder.Configuration["Jwt:SigningKey"];
     if (string.IsNullOrWhiteSpace(signingKey) || signingKey == placeholderSigningKey || signingKey.Length < 32)
-    {
         throw new InvalidOperationException(
-            "Jwt:SigningKey is missing, is the checked-in development placeholder, or is shorter " +
-            "than 32 characters. Set a real, random JWT_SIGNING_KEY before starting outside Development.");
-    }
+            "Jwt:SigningKey is missing, is the checked-in development placeholder, or is shorter than 32 characters.");
 
-    var connectionString = builder.Configuration.GetConnectionString("Default");
-    if (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("Password=change-me"))
-    {
-        throw new InvalidOperationException(
-            "The database connection string is missing or still uses the checked-in development " +
-            "password. Set a real DB_PASSWORD before starting outside Development.");
-    }
+    var cs = builder.Configuration.GetConnectionString("Default");
+    if (string.IsNullOrWhiteSpace(cs) || cs.Contains("Password=change-me"))
+        throw new InvalidOperationException("The database connection string is missing or still uses the dev password.");
 }
 
 var connString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
+// Dapper: map snake_case columns to PascalCase members — and, via the custom map, to PascalCase
+// constructor parameters too (positional records).
+DefaultTypeMap.MatchNamesWithUnderscores = true;
+UnderscoreConstructorTypeMap.Register(
+    typeof(GitSrv.Api.Domain.User),
+    typeof(GitSrv.Api.Domain.Organisation),
+    typeof(GitSrv.Api.Domain.Team),
+    typeof(GitSrv.Api.Domain.Repository),
+    typeof(GitSrv.Api.Domain.SshKey),
+    typeof(OrgSummary),
+    typeof(OrgMember),
+    typeof(TeamSummary),
+    typeof(TeamMemberRow),
+    typeof(RepoSummary));
+
 builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connString).Build());
+builder.Services.AddSingleton<Db>();
+builder.Services.AddSingleton(new TokenOptions { SigningKey = builder.Configuration["Jwt:SigningKey"] ?? "" });
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<PasswordHasher>();
+
+builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<Authorizer>();
+builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<OrgService>();
+builder.Services.AddScoped<TeamService>();
+builder.Services.AddScoped<RepoService>();
+builder.Services.AddScoped<SshKeyService>();
+
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<CsrfMiddleware>();
+app.UseMiddleware<AuthExtensions.CurrentUserMiddleware>();
 
-// Run pending SQL migrations before serving traffic.
 if (builder.Configuration.GetValue("GitSrv:RunMigrationsOnStartup", true))
 {
     using var scope = app.Services.CreateScope();
@@ -55,7 +82,6 @@ if (builder.Configuration.GetValue("GitSrv:RunMigrationsOnStartup", true))
     await new MigrationRunner(dataSource, sqlDir, logger).RunAsync();
 }
 
-// Liveness + readiness. `web` and the compose healthcheck both hit this.
 app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 {
     try
@@ -71,13 +97,19 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
     }
 });
 
-// Minimal identity of the running build, useful for the front-end skeleton and smoke tests.
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 0,
+    phase = 1,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
+
+// Access-token cookies are marked Secure outside Development (behind the TLS-terminating proxy).
+var cookiesSecure = !isDev;
+app.MapAuth(cookiesSecure);
+app.MapUsers();
+app.MapOrgs();
+app.MapRepos();
 
 app.Run();
 
