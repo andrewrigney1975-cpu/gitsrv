@@ -1,5 +1,9 @@
 # GitSrv build plan
 
+**Status: all 12 phases complete** (2026-09-01). Each shipped as one commit on `main` with
+contract + unit tests green; see `CHANGELOG.md`. This document is the original plan, kept for
+reference.
+
 Rendered plan: <https://claude.ai/code/artifact/37464a5f-1917-4f40-9d5d-2ef18524c754>
 
 Twelve phases. Each ends at a demoable, deployed state. Critical path is **0 → 1 → 2 → 3 → 4** —
