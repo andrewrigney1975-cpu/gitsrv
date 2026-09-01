@@ -1,0 +1,12 @@
+{
+  "name": "gitsrv-contract-tests",
+  "private": true,
+  "type": "module",
+  "description": "Black-box tests against a running GitSrv stack. Phase 0: smoke checks. Phase 2 adds the git-transport contract suite (clone/push/fetch/force-push over HTTP and SSH).",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

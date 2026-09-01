@@ -1,0 +1,136 @@
+/* GitSrv design tokens — ported from Enklr.app's `--kf-*` system (src/css/styles.css), renamed to
+   `--gs-*`. Same radius/shadow/spacing scale, same system-aware light/dark model. Git-semantic
+   colours (diff add/remove, branch-graph lanes, blame heat) are added on top in later phases. */
+
+:root {
+  /* brand + accents */
+  --gs-blue: #0c66e4;
+  --gs-blue-dark: #09419e;
+  --gs-green: #216e4e;
+  --gs-green-dark: #164b35;
+  --gs-navy: #0c2a52;
+  --gs-navy-light: #163a6b;
+
+  /* surfaces */
+  --gs-bg: #f7f8f9;
+  --gs-surface: #ffffff;
+  --gs-surface-sunken: #f1f2f4;
+  --gs-border: #dfe1e6;
+  --gs-border-strong: #c1c7d0;
+
+  /* text */
+  --gs-text: #172b4d;
+  --gs-text-secondary: #6b778c;
+  --gs-text-faint: #8993a4;
+
+  /* shape */
+  --gs-radius: 4px;
+  --gs-shadow: 0 1px 2px rgba(9, 30, 66, .15), 0 0 1px rgba(9, 30, 66, .20);
+  --gs-shadow-hover: 0 4px 10px -2px rgba(9, 30, 66, .30), 0 0 1px rgba(9, 30, 66, .25);
+  --gs-modal-shadow: 0 8px 24px rgba(9, 30, 66, .35);
+
+  /* type */
+  --gs-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --gs-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+
+  /* status */
+  --gs-danger: #de350b;
+  --gs-danger-bg: #ffebe6;
+  --gs-good-fg: #216e4e;
+  --gs-good-bg: #dcfff1;
+  --gs-warn-fg: #974f0c;
+  --gs-warn-bg: #fff0b3;
+
+  /* interaction */
+  --gs-input-bg: #fafbfc;
+  --gs-input-bg-focus: #ffffff;
+  --gs-overlay-backdrop: rgba(9, 30, 66, .54);
+  --gs-hover-tint: rgba(9, 30, 66, .06);
+  --gs-scrollbar-thumb: #c1c7d0;
+
+  /* git-semantic (seeded here, exercised from Phase 3) */
+  --gs-diff-add-bg: #dcfff1;
+  --gs-diff-add-fg: #216e4e;
+  --gs-diff-del-bg: #ffebe6;
+  --gs-diff-del-fg: #ae2e24;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gs-blue: #579dff;
+    --gs-blue-dark: #388bff;
+    --gs-green: #2f9e6e;
+    --gs-green-dark: #237a54;
+
+    --gs-bg: #14171a;
+    --gs-surface: #22272b;
+    --gs-surface-sunken: #1d2125;
+    --gs-border: #3a3f42;
+    --gs-border-strong: #56616a;
+
+    --gs-text: #e6e7e8;
+    --gs-text-secondary: #9fadbc;
+    --gs-text-faint: #7a8694;
+
+    --gs-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 0 1px rgba(0, 0, 0, .4);
+    --gs-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, .6), 0 0 1px rgba(0, 0, 0, .5);
+    --gs-modal-shadow: 0 8px 28px rgba(0, 0, 0, .55);
+
+    --gs-danger: #f87168;
+    --gs-danger-bg: #3d2422;
+    --gs-good-fg: #7ee2b8;
+    --gs-good-bg: #163a2c;
+    --gs-warn-fg: #f5cd47;
+    --gs-warn-bg: #3d2f0a;
+
+    --gs-input-bg: #1a1e21;
+    --gs-input-bg-focus: #282e33;
+    --gs-overlay-backdrop: rgba(0, 0, 0, .65);
+    --gs-hover-tint: rgba(255, 255, 255, .07);
+    --gs-scrollbar-thumb: #4a5158;
+
+    --gs-diff-add-bg: #163a2c;
+    --gs-diff-add-fg: #7ee2b8;
+    --gs-diff-del-bg: #3d2422;
+    --gs-diff-del-fg: #ffb3ab;
+  }
+}
+
+:root[data-theme="dark"] {
+  --gs-blue: #579dff;
+  --gs-blue-dark: #388bff;
+  --gs-green: #2f9e6e;
+  --gs-green-dark: #237a54;
+
+  --gs-bg: #14171a;
+  --gs-surface: #22272b;
+  --gs-surface-sunken: #1d2125;
+  --gs-border: #3a3f42;
+  --gs-border-strong: #56616a;
+
+  --gs-text: #e6e7e8;
+  --gs-text-secondary: #9fadbc;
+  --gs-text-faint: #7a8694;
+
+  --gs-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 0 1px rgba(0, 0, 0, .4);
+  --gs-shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, .6), 0 0 1px rgba(0, 0, 0, .5);
+  --gs-modal-shadow: 0 8px 28px rgba(0, 0, 0, .55);
+
+  --gs-danger: #f87168;
+  --gs-danger-bg: #3d2422;
+  --gs-good-fg: #7ee2b8;
+  --gs-good-bg: #163a2c;
+  --gs-warn-fg: #f5cd47;
+  --gs-warn-bg: #3d2f0a;
+
+  --gs-input-bg: #1a1e21;
+  --gs-input-bg-focus: #282e33;
+  --gs-overlay-backdrop: rgba(0, 0, 0, .65);
+  --gs-hover-tint: rgba(255, 255, 255, .07);
+  --gs-scrollbar-thumb: #4a5158;
+
+  --gs-diff-add-bg: #163a2c;
+  --gs-diff-add-fg: #7ee2b8;
+  --gs-diff-del-bg: #3d2422;
+  --gs-diff-del-fg: #ffb3ab;
+}

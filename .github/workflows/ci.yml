@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore api/GitSrv.sln
+      - run: dotnet build api/GitSrv.sln -c Release --no-restore
+      - run: dotnet format api/GitSrv.sln --verify-no-changes --no-restore
+        continue-on-error: true
+
+  stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write .env
+        run: |
+          cp .env.example .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-test-password/' .env
+      - name: Build and start the stack
+        run: docker compose up -d --build
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health | grep -q '"status":"ok"'; then
+              echo "stack healthy"; exit 0
+            fi
+            sleep 3
+          done
+          echo "stack did not become healthy"; docker compose logs; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Contract tests
+        working-directory: contract-tests
+        run: npm test
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

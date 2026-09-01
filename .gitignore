@@ -1,0 +1,20 @@
+# secrets / local config
+.env
+
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+
+# web build output
+web/dist/
+
+# node
+node_modules/
+
+# editor / OS
+.vs/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

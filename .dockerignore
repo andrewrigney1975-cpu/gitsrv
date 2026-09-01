@@ -1,0 +1,10 @@
+**/bin
+**/obj
+**/node_modules
+**/.vs
+**/.idea
+.git
+.env
+web/dist
+.gitsrv-data
+contract-tests/node_modules

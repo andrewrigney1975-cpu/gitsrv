@@ -1,0 +1,80 @@
+# GitSrv local / single-host stack. Four tiers, each in its own container:
+#
+#   db   - PostgreSQL 16. Relational metadata only; it never stores Git objects.
+#   api  - ASP.NET Core (C#). Runs pending migrations on start-up, then serves the API.
+#   web  - nginx serving the static no-framework front end and proxying /api and /health.
+#   ssh  - Git-over-SSH transport. A stub in Phase 0 (built, health-checked, does nothing
+#          useful yet); wired to real auth + pack routing in Phase 2.
+#
+# SECURITY: nothing here terminates TLS. `web` listens on plain HTTP; `api`, `db` and the
+# git data volume are never published to the host. Any internet-facing deployment REQUIRES a
+# TLS-terminating proxy in front of `web`. This file neither provides nor enforces one.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gitsrv
+      POSTGRES_USER: gitsrv
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitsrv"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/GitSrv.Api/Dockerfile
+    environment:
+      ConnectionStrings__Default: "Host=db;Database=gitsrv;Username=gitsrv;Password=${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?JWT_SIGNING_KEY must be set in .env}
+      GitSrv__RepositoryRoot: /var/lib/gitsrv/repositories
+      GitSrv__RunMigrationsOnStartup: "true"
+      App__PublicBaseUrl: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+    volumes:
+      - git-data:/var/lib/gitsrv/repositories
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ssh:
+    build:
+      context: .
+      dockerfile: ssh/Dockerfile
+    environment:
+      GITSRV_API_BASE: "http://api:8080"
+    ports:
+      - "${SSH_PORT:-2222}:22"
+    volumes:
+      - git-data:/var/lib/gitsrv/repositories
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  git-data:

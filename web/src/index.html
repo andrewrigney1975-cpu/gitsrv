@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitSrv</title>
+<script>
+  /* Apply saved theme before first paint so there's no flash of the wrong theme. */
+  (function () {
+    try {
+      var saved = localStorage.getItem('gitsrv_theme');
+      if (saved === 'dark' || saved === 'light') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (e) { /* localStorage unavailable — fall back to system */ }
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230c66e4'/%3E%3Crect x='5' y='4' width='3' height='16' rx='1.5' fill='white'/%3E%3Crect x='16' y='4' width='3' height='9' rx='1.5' fill='white' opacity='.8'/%3E%3Ccircle cx='6.5' cy='19' r='2.5' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="/css/gs-tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <span class="brand"><span class="glyph" aria-hidden="true"></span> GitSrv</span>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button" aria-label="Toggle theme">Theme</button>
+</header>
+
+<main>
+  <h1>GitSrv is running</h1>
+  <p class="lede">Phase&nbsp;0 walking skeleton &mdash; four containers, one migration, the front end
+    talking to the API. Everything below is a live check.</p>
+
+  <div class="card">
+    <div class="status-row">
+      <span class="name">Web tier</span>
+      <span class="detail">nginx &middot; this page</span>
+      <span class="pill ok">up</span>
+    </div>
+    <div class="status-row">
+      <span class="name">API tier</span>
+      <span class="detail" id="api-detail">checking&hellip;</span>
+      <span class="pill pending" id="api-pill">&hellip;</span>
+    </div>
+    <div class="status-row">
+      <span class="name">Database</span>
+      <span class="detail" id="db-detail">checking&hellip;</span>
+      <span class="pill pending" id="db-pill">&hellip;</span>
+    </div>
+  </div>
+
+  <div class="card" id="meta-card" hidden>
+    <div class="status-row">
+      <span class="name">Build</span>
+      <span class="detail" id="meta-detail"></span>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
