@@ -55,7 +55,7 @@ button.primary { background: var(--gs-blue); border-color: var(--gs-blue-dark); 
 .app-header .brand .glyph::after  { right: 5px; top: 4px; width: 3px; height: 8px; opacity: .8; }
 .app-header .spacer { flex: 1; }
 
-main { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+main { max-width: 1420px; margin: 0 auto; padding: 40px 20px; }
 
 .card {
   background: var(--gs-surface);
@@ -116,7 +116,6 @@ button.danger { border-color: var(--gs-danger); color: var(--gs-danger); backgro
 .muted { color: var(--gs-text-secondary); }
 .card.narrow, .auth-card { max-width: 460px; }
 .card.empty { text-align: center; padding: 32px; }
-main { max-width: 860px; }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .org-card { display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--gs-text); }
