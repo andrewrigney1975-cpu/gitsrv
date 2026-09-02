@@ -5,6 +5,7 @@ import { asyncView } from './_shared.js';
 import { shell } from './repo.js';
 
 const PERMS = ['read', 'triage', 'write', 'maintain', 'admin'];
+const R = (slug, repoSlug) => `/api/orgs/${slug}/repos/${repoSlug}`;
 
 export function renderRepoSettings(slug, repoSlug) {
   return asyncView(async () => {
