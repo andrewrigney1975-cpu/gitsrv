@@ -68,6 +68,10 @@ test('register → create org → add member → team → repo → permissions',
   // Alice creates a team and a private repo.
   r = await call(alice, 'POST', `/api/orgs/${orgSlug}/teams`, { slug: 'core', name: 'Core' });
   assert.equal(r.status, 201);
+  r = await call(bob, 'GET', `/api/orgs/${orgSlug}/teams`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body[0].name, 'Core');
+  assert.equal(r.body[0].memberCount, 0);
   r = await call(alice, 'POST', `/api/orgs/${orgSlug}/repos`,
     { slug: 'widget', name: 'Widget', visibility: 'private', defaultBranch: 'main' });
   assert.equal(r.status, 201);

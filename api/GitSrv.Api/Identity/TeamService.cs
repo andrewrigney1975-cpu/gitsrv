@@ -34,7 +34,7 @@ public sealed class TeamService(Db db)
         return (await conn.QueryAsync<TeamSummary>(
             """
             SELECT t.id, t.slug, t.name,
-                   (SELECT count(*) FROM team_members tm WHERE tm.team_id = t.id) AS MemberCount
+                   (SELECT count(*) FROM team_members tm WHERE tm.team_id = t.id)::int AS MemberCount
             FROM teams t WHERE t.org_id = @orgId ORDER BY t.name
             """, new { orgId })).ToList();
     }
