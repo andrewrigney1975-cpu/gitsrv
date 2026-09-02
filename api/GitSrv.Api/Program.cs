@@ -169,6 +169,7 @@ app.MapGet("/api/meta", () => Results.Json(new
 // Access-token cookies are marked Secure outside Development (behind the TLS-terminating proxy).
 var cookiesSecure = !isDev;
 app.MapAuth(cookiesSecure);
+app.MapSlugs();
 app.MapUsers();
 app.MapOrgs();
 app.MapRepos();

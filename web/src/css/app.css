@@ -142,6 +142,10 @@ form.stack { gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field span { font-weight: 600; font-size: 13px; }
 .field small { color: var(--gs-text-faint); }
+.field-status { min-height: 1em; }
+.field-status.ok { color: var(--gs-good-fg); }
+.field-status.ok::before { content: '✓ '; }
+.field-status.bad { color: var(--gs-danger); }
 .field input, .field select {
   font: inherit; padding: 7px 9px; border-radius: var(--gs-radius);
   border: 1px solid var(--gs-border-strong); background: var(--gs-input-bg); color: var(--gs-text);

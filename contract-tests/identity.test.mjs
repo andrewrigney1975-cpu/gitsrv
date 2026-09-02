@@ -48,9 +48,16 @@ test('register → create org → add member → team → repo → permissions',
     { username: bobName, email: `${bobName}@ex.com`, displayName: 'Bob', password: 'correct-horse-battery' });
   assert.equal(r.status, 200);
 
+  // slug suggestion + availability
+  assert.equal((await call(alice, 'GET', '/api/slug-suggest?name=My%20Cool%20Repo!')).body.suggestion, 'my-cool-repo');
+  assert.equal((await call(alice, 'GET', `/api/slug-available/org?slug=${orgSlug}`)).body.available, true);
+  assert.equal((await call(alice, 'GET', '/api/slug-available/org?slug=admin')).body.available, false);
+
   // Alice creates an org (she becomes owner).
   r = await call(alice, 'POST', '/api/orgs/', { slug: orgSlug, name: 'Acme', description: 'test' });
   assert.equal(r.status, 201, JSON.stringify(r.body));
+
+  assert.equal((await call(alice, 'GET', `/api/slug-available/org?slug=${orgSlug}`)).body.available, false);
 
   // Bob can't see it yet.
   r = await call(bob, 'GET', `/api/orgs/${orgSlug}`);
@@ -72,6 +79,9 @@ test('register → create org → add member → team → repo → permissions',
   assert.equal(r.status, 200);
   assert.equal(r.body[0].name, 'Core');
   assert.equal(r.body[0].memberCount, 0);
+
+  assert.equal((await call(bob, 'GET', `/api/orgs/${orgSlug}/slug-available?kind=team&slug=core`)).body.available, false);
+  assert.equal((await call(bob, 'GET', `/api/orgs/${orgSlug}/slug-available?kind=repo&slug=widget-new`)).body.available, true);
   r = await call(alice, 'POST', `/api/orgs/${orgSlug}/repos`,
     { slug: 'widget', name: 'Widget', visibility: 'private', defaultBranch: 'main' });
   assert.equal(r.status, 201);

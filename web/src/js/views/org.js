@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { el, form, toast, errorToast } from '../ui.js';
 import { navigate } from '../router.js';
 import { asyncView, orgNav } from './_shared.js';
+import { suggestSlug, repoSlugCheck } from '../features/slug.js';
 
 export function renderOrg(slug) {
   return asyncView(async () => {
@@ -23,7 +24,8 @@ export function renderOrg(slug) {
       newRepoHost.append(el('div', { class: 'card' }, el('h2', {}, 'New repository'), form({
         fields: [
           { name: 'name', label: 'Name', required: true },
-          { name: 'slug', label: 'URL slug', required: true, hint: 'lowercase letters, digits, single - or _' },
+          { name: 'slug', label: 'URL slug', required: true, hint: 'lowercase letters, digits, single - or _',
+            deriveFrom: 'name', derive: suggestSlug, check: repoSlugCheck(slug) },
           { name: 'description', label: 'Description' },
           { name: 'visibility', label: 'Visibility', type: 'select', value: 'private', options: [
             { value: 'private', label: 'Private — only people with access' },

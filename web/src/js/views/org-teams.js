@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { el, form, toast, errorToast, confirmDialog } from '../ui.js';
 import { navigate } from '../router.js';
 import { asyncView, orgNav } from './_shared.js';
+import { suggestSlug, teamSlugCheck } from '../features/slug.js';
 
 export function renderOrgTeams(slug, teamSlug) {
   return asyncView(async () => {
@@ -28,7 +29,8 @@ export function renderOrgTeams(slug, teamSlug) {
       wrap.append(el('div', { class: 'card' }, el('h2', {}, 'New team'), form({
         fields: [
           { name: 'name', label: 'Name', required: true },
-          { name: 'slug', label: 'URL slug', required: true },
+          { name: 'slug', label: 'URL slug', required: true,
+            deriveFrom: 'name', derive: suggestSlug, check: teamSlugCheck(slug) },
           { name: 'description', label: 'Description' },
         ],
         submitLabel: 'Create team',

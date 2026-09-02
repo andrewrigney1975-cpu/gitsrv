@@ -37,15 +37,21 @@ export function errorToast(err) {
 }
 
 // Minimal form builder: fields -> {name, label, type?, value?, required?, hint?}
+// Field options:
+//   name, label, type, value, required, autocomplete, placeholder, hint, options (select)
+//   deriveFrom: 'otherField'  — auto-fill from another field until the user edits this one
+//   derive: (value) => string — transform applied to the derived value (default: identity)
+//   check: async (value) => ({ ok, message }) | null — debounced live validation, shown inline
 export function form({ fields, submitLabel, onSubmit }) {
   const controls = {};
+  const values = () => Object.fromEntries(Object.entries(controls).map(([k, c]) => [k, c.value]));
+
   const f = el('form', { class: 'stack', onsubmit: async (e) => {
     e.preventDefault();
     const btn = f.querySelector('button[type=submit]');
     btn.disabled = true;
     try {
-      const values = Object.fromEntries(Object.entries(controls).map(([k, c]) => [k, c.value]));
-      await onSubmit(values);
+      await onSubmit(values());
     } catch (err) {
       errorToast(err);
     } finally {
@@ -54,6 +60,15 @@ export function form({ fields, submitLabel, onSubmit }) {
   }});
 
   for (const field of fields) {
+    if (field.type === 'select') {
+      const sel = el('select', {}, ...field.options.map((o) =>
+        el('option', { value: o.value, selected: o.value === field.value }, o.label)));
+      controls[field.name] = sel;
+      f.append(el('label', { class: 'field' }, el('span', { text: field.label }), sel,
+        field.hint && el('small', { text: field.hint })));
+      continue;
+    }
+
     const input = el('input', {
       type: field.type || 'text',
       value: field.value || '',
@@ -61,18 +76,52 @@ export function form({ fields, submitLabel, onSubmit }) {
       autocomplete: field.autocomplete || 'off',
       placeholder: field.placeholder || '',
     });
-    if (field.type === 'select') {
-      const sel = el('select', {}, ...field.options.map((o) =>
-        el('option', { value: o.value, selected: o.value === field.value }, o.label)));
-      controls[field.name] = sel;
-      f.append(el('label', { class: 'field' }, el('span', { text: field.label }), sel,
-        field.hint && el('small', { text: field.hint })));
-    } else {
-      controls[field.name] = input;
-      f.append(el('label', { class: 'field' }, el('span', { text: field.label }), input,
-        field.hint && el('small', { text: field.hint })));
+    controls[field.name] = input;
+
+    const status = el('small', { class: 'field-status' });
+    f.append(el('label', { class: 'field' }, el('span', { text: field.label }), input,
+      field.hint && el('small', { text: field.hint }), field.check ? status : null));
+
+    // live check (debounced)
+    if (field.check) {
+      let timer;
+      const runCheck = () => {
+        clearTimeout(timer);
+        const v = input.value.trim();
+        status.textContent = '';
+        status.className = 'field-status';
+        if (!v) return;
+        timer = setTimeout(async () => {
+          try {
+            const res = await field.check(v, values());
+            if (!res) return;
+            status.textContent = res.message || (res.ok ? 'Available' : 'Not available');
+            status.className = 'field-status ' + (res.ok ? 'ok' : 'bad');
+          } catch { /* ignore transient check errors */ }
+        }, 350);
+      };
+      input.addEventListener('input', runCheck);
     }
   }
+
+  // deriveFrom wiring (after all controls exist)
+  for (const field of fields) {
+    if (!field.deriveFrom || !controls[field.deriveFrom] || !controls[field.name]) continue;
+    const src = controls[field.deriveFrom];
+    const dst = controls[field.name];
+    const xform = field.derive || ((x) => x);
+    let userEdited = !!dst.value;
+    let syntheticWrite = false;
+    dst.addEventListener('input', () => { if (!syntheticWrite) userEdited = true; });
+    src.addEventListener('input', () => {
+      if (userEdited) return;
+      dst.value = xform(src.value);
+      syntheticWrite = true;
+      dst.dispatchEvent(new Event('input'));   // trigger the derived field's own check
+      syntheticWrite = false;
+    });
+  }
+
   f.append(el('button', { type: 'submit', class: 'primary' }, submitLabel));
   return f;
 }
