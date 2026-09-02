@@ -10,7 +10,8 @@ const R = (slug, repoSlug) => `/api/orgs/${slug}/repos/${repoSlug}`;
 export function renderRepoSettings(slug, repoSlug) {
   return asyncView(async () => {
     const repo = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/`);
-    const b = { ...repo, myPermission: repo.myPermission };
+    // the repo GET returns { slug, orgSlug, … }; shell() wants { orgSlug, repoSlug }
+    const b = { ...repo, orgSlug: repo.orgSlug || slug, repoSlug: repo.slug || repoSlug, myPermission: repo.myPermission };
     if (repo.myPermission !== 'admin') {
       return shell(b, repo.defaultBranch, 'settings', el('div', { class: 'card muted' }, 'Admin permission required.'));
     }
