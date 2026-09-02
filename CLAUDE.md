@@ -171,6 +171,19 @@ never query membership tables directly. Dapper maps snake_case→PascalCase cons
 - `scripts/backup.sh` / `scripts/restore.sh` (pg_dump -Fc + git-data volume tar; `hostpath()`
   handles Windows git-bash). `deploy/docker-compose.prod.yml` — Caddy TLS overlay.
 
+## Repository import (post-Phase 11, migration 012)
+
+- `POST /api/orgs/{slug}/repos/import` (`OrgEndpoints`, org Member) → `RepoService.CreateImportAsync`
+  inserts a repo row with `import_source` + `import_status='pending'`. `UrlGuard.EnsureSafe` runs here.
+- `Git/RepoImportWorker.cs` (hosted service, 5s poll) claims one `pending` row `FOR UPDATE SKIP LOCKED`,
+  `git clone --bare` it, applies config + `WriteHooks` + commit-graph, sets `completed`/`failed`
+  (`import_error`). `git` CLI is in the api image already (shared with `GitMaintenanceWorker`).
+- `RepoBrowseService.ResolveAsync` skips `storage.EnsureAsync` while `import_status` is
+  pending/importing/failed; `/browse/overview` returns an import-state payload (empty refs) instead of
+  opening a RepoReader. Front end: `views/repo.js renderRepoCode` shows progress/failed cards;
+  `views/org.js` has the "Import" button.
+- Test: `contract-tests/import.test.mjs` (imports a public GitSrv repo via `host.docker.internal`).
+
 ## Conventions
 
 - Front end: no framework, no bundler runtime. Feature modules in `web/src/js/features/` talk to

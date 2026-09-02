@@ -16,6 +16,7 @@ public static class OrgEndpoints
     public sealed record UpdateTeamRequest(string Name, string Description);
     public sealed record AddTeamMemberRequest(string Username);
     public sealed record CreateRepoRequest(string Slug, string Name, string Description, string Visibility, string DefaultBranch);
+    public sealed record ImportRepoRequest(string Slug, string Name, string Visibility, string SourceUrl);
 
     public static void MapOrgs(this IEndpointRouteBuilder app)
     {
@@ -156,6 +157,15 @@ public static class OrgEndpoints
             var repo = await repos.CreateAsync(org.Id, cu.RequireId(), req.Slug ?? "", req.Name ?? "",
                 req.Description ?? "", req.Visibility ?? "private", req.DefaultBranch ?? "main", ct);
             return Results.Json(new { repo.Id, repo.Slug, repo.Name, repo.Visibility, orgSlug = org.Slug }, statusCode: 201);
+        });
+
+        // Import an external repo by clone URL — a background worker mirrors it into the bare repo.
+        g.MapPost("/{slug}/repos/import", async (string slug, ImportRepoRequest req, CurrentUser cu, OrgService orgs, RepoService repos, Authorizer authz, CancellationToken ct) =>
+        {
+            var org = await RequireOrgAsync(orgs, authz, cu, slug, OrgRole.Member, ct);
+            await repos.CreateImportAsync(org.Id, cu.RequireId(), req.Slug ?? "", req.Name ?? "",
+                req.Visibility ?? "private", req.SourceUrl ?? "", ct);
+            return Results.Json(new { slug = Slug.Normalise(req.Slug ?? ""), orgSlug = org.Slug }, statusCode: 202);
         });
     }
 

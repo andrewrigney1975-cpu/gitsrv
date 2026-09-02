@@ -2,6 +2,14 @@
 
 All development to date, by build phase. Dates are the day the phase landed on `main`.
 
+## Repository import — 2026-09-02
+- Import an external repo by public clone URL (`POST /api/orgs/{slug}/repos/import`): a record is
+  created with `import_status = 'pending'` and `RepoImportWorker` mirrors it with `git clone --bare`
+  in the background, then applies GitSrv's repo config, hooks and commit-graph.
+- Source URLs pass `Ops/UrlGuard` (SSRF) at request time; failures surface as `import_status = 'failed'`
+  with the git error. Overview/repo pages show an "Import in progress" / "Import failed" state.
+- Web: "Import" button on the org page (clone URL → auto-derived name/slug). Migration 012.
+
 ## Phase 11 — security, operability & release — 2026-09-01
 - Org-scoped audit log (`audit_events`) + CSV export; entries for login, member changes, repo delete.
 - Rate limiting (20/min per IP on `/api/auth/*`); `ForwardedHeaders` for correct client IP behind the proxy.

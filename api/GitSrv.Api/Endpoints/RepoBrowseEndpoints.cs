@@ -23,6 +23,18 @@ public static class RepoBrowseEndpoints
             RepoBrowseService svc, IMemoryCache cache, CancellationToken ct) =>
         {
             var b = await svc.ResolveAsync(slug, repoSlug, cu.UserId, ct);
+
+            if (b.ImportStatus is "pending" or "importing" or "failed")
+            {
+                return Results.Json(new
+                {
+                    repo = new { b.RepoId, b.OrgSlug, b.RepoSlug, b.Name, b.Description, b.Visibility, b.DefaultBranch, b.IsArchived, b.SizeBytes, b.PushedAt, b.ImportStatus, b.ImportError },
+                    myPermission = RepoPermissions.ToDbValue(b.Permission),
+                    refs = new { isEmpty = true, defaultBranch = b.DefaultBranch, branches = Array.Empty<object>(), tags = Array.Empty<object>() },
+                    home = (object?)null,
+                });
+            }
+
             using var r = svc.Open(b);
 
             var refs = r.Refs();

@@ -70,6 +70,19 @@ export function renderRepoCode(slug, repoSlug, refName, path) {
     const b = { ...ov.repo, orgSlug: ov.repo.orgSlug, repoSlug: ov.repo.repoSlug, myPermission: ov.myPermission };
     const currentRef = refName || ov.repo.defaultBranch || 'HEAD';
 
+    if (b.importStatus === 'pending' || b.importStatus === 'importing') {
+      setTimeout(() => location.reload(), 5000);
+      return shell(b, currentRef, 'code', el('div', { class: 'card' },
+        el('h2', {}, 'Import in progress'),
+        el('p', { class: 'muted' }, 'GitSrv is mirroring this repository from its source. This page refreshes automatically.')));
+    }
+    if (b.importStatus === 'failed') {
+      return shell(b, currentRef, 'code', el('div', { class: 'card' },
+        el('h2', {}, 'Import failed'),
+        el('p', { class: 'muted' }, b.importError || 'The source repository could not be cloned.'),
+        el('p', { class: 'muted' }, 'Delete this repository and try again with a valid public clone URL.')));
+    }
+
     if (ov.refs.isEmpty) {
       return shell(b, currentRef, 'code', emptyRepoHelp(b));
     }

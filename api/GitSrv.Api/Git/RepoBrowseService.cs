@@ -9,7 +9,8 @@ namespace GitSrv.Api.Git;
 
 public sealed record BrowseContext(long RepoId, long OrgId, string OrgSlug, string RepoSlug,
     string Name, string Description, string Visibility, string DefaultBranch, bool IsArchived,
-    long SizeBytes, DateTime? PushedAt, RepoPermission Permission, string RepoDir);
+    long SizeBytes, DateTime? PushedAt, RepoPermission Permission, string RepoDir,
+    string? ImportStatus, string ImportError);
 
 /// <summary>
 /// Resolves a browse request to a <see cref="BrowseContext"/> (repo metadata + effective permission
@@ -19,7 +20,8 @@ public sealed record BrowseContext(long RepoId, long OrgId, string OrgSlug, stri
 public sealed class RepoBrowseService(Db db, Authorizer authz, GitStorage storage)
 {
     private sealed record Row(long Id, long OrgId, string Slug, string Name, string Description,
-        string Visibility, string DefaultBranch, bool IsArchived, long SizeBytes, DateTime? PushedAt);
+        string Visibility, string DefaultBranch, bool IsArchived, long SizeBytes, DateTime? PushedAt,
+        string? ImportStatus, string ImportError);
 
     public async Task<BrowseContext> ResolveAsync(string orgSlug, string repoSlug, long? userId, CancellationToken ct)
     {
@@ -36,7 +38,8 @@ public sealed class RepoBrowseService(Db db, Authorizer authz, GitStorage storag
             """
             SELECT id, org_id AS OrgId, slug, name, description, visibility,
                    default_branch AS DefaultBranch, is_archived AS IsArchived,
-                   size_bytes AS SizeBytes, pushed_at AS PushedAt
+                   size_bytes AS SizeBytes, pushed_at AS PushedAt,
+                   import_status AS ImportStatus, import_error AS ImportError
             FROM repositories WHERE org_id = @orgId AND slug = @repoSlug
             """, new { orgId, repoSlug });
 
@@ -48,7 +51,8 @@ public sealed class RepoBrowseService(Db db, Authorizer authz, GitStorage storag
                 """
                 SELECT id, org_id AS OrgId, slug, name, description, visibility,
                        default_branch AS DefaultBranch, is_archived AS IsArchived,
-                       size_bytes AS SizeBytes, pushed_at AS PushedAt
+                       size_bytes AS SizeBytes, pushed_at AS PushedAt,
+                       import_status AS ImportStatus, import_error AS ImportError
                 FROM repositories WHERE org_id = @orgId AND slug = @redirect
                 """, new { orgId, redirect });
             if (row is null) throw new NotFoundException("Repository not found.");
@@ -59,11 +63,14 @@ public sealed class RepoBrowseService(Db db, Authorizer authz, GitStorage storag
             throw new NotFoundException("Repository not found.");
 
         var finalOrgSlug = await conn.ExecuteScalarAsync<string>("SELECT slug FROM organisations WHERE id = @id", new { id = row.OrgId }) ?? orgSlug;
-        await storage.EnsureAsync(row.OrgId, row.Id, row.DefaultBranch, ct);
+        // Don't materialise a bare repo for an import that hasn't landed yet — the worker owns that directory.
+        var importPending = row.ImportStatus is "pending" or "importing" or "failed";
+        if (!importPending)
+            await storage.EnsureAsync(row.OrgId, row.Id, row.DefaultBranch, ct);
 
         return new BrowseContext(row.Id, row.OrgId, finalOrgSlug, row.Slug, row.Name, row.Description,
             row.Visibility, row.DefaultBranch, row.IsArchived, row.SizeBytes, row.PushedAt, perm,
-            storage.RepoPath(row.OrgId, row.Id));
+            storage.RepoPath(row.OrgId, row.Id), row.ImportStatus, row.ImportError ?? "");
     }
 
     public RepoReader Open(BrowseContext ctx) => new(ctx.RepoDir);

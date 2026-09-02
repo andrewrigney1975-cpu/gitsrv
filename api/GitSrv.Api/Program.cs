@@ -122,6 +122,7 @@ builder.Services.AddSingleton(new GitSrv.Api.Collab.EmailOptions
 });
 builder.Services.AddHostedService<GitSrv.Api.Collab.EmailWorker>();
 builder.Services.AddHostedService<GitMaintenanceWorker>();
+builder.Services.AddHostedService<RepoImportWorker>();
 builder.Services.AddMemoryCache(o => o.SizeLimit = 64 * 1024 * 1024); // ~64 MiB of rendered content
 
 builder.Services.AddHealthChecks();
@@ -162,7 +163,7 @@ app.MapGet("/health", async (NpgsqlDataSource db, CancellationToken ct) =>
 app.MapGet("/api/meta", () => Results.Json(new
 {
     name = "GitSrv",
-    phase = 11,
+    phase = 12,
     version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
 }));
 

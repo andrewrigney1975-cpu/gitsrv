@@ -49,6 +49,34 @@ public sealed class RepoService(Db db, GitStorage storage)
         return new Repository(id, orgId, slug, name.Trim(), description.Trim(), visibility, defaultBranch, false, creatorUserId, DateTime.UtcNow);
     }
 
+    /// <summary>
+    /// Creates a repo record marked for import. A background worker (RepoImportWorker) clones
+    /// <paramref name="sourceUrl"/> into the bare repo; the record shows import_status until done.
+    /// </summary>
+    public async Task CreateImportAsync(long orgId, long creatorUserId, string slug, string name,
+        string visibility, string sourceUrl, CancellationToken ct)
+    {
+        slug = Slug.Normalise(slug);
+        if (!Slug.IsValid(slug))
+            throw new ValidationException("Repo slug must be 1–40 chars, lowercase letters/digits with single - or _ separators, and not reserved.");
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 100)
+            throw new ValidationException("Repo name is required and must be 100 chars or fewer.");
+        if (!Visibilities.Contains(visibility))
+            throw new ValidationException("Visibility must be public, internal or private.");
+        Ops.UrlGuard.EnsureSafe(sourceUrl);
+        if (!sourceUrl.EndsWith(".git") && !sourceUrl.Contains("://"))
+            throw new ValidationException("Enter a full clone URL, e.g. https://github.com/owner/repo.git");
+
+        await using var conn = await db.OpenAsync(ct);
+        if (await conn.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM repositories WHERE org_id = @orgId AND slug = @slug)", new { orgId, slug }))
+            throw new ValidationException("A repository with that slug already exists in this org.");
+
+        await conn.ExecuteAsync("""
+            INSERT INTO repositories (org_id, slug, name, visibility, default_branch, created_by, import_source, import_status)
+            VALUES (@orgId, @slug, @name, @visibility, 'main', @creatorUserId, @sourceUrl, 'pending')
+            """, new { orgId, slug, name = name.Trim(), visibility, creatorUserId, sourceUrl = sourceUrl.Trim() });
+    }
+
     public async Task<Repository?> GetAsync(long orgId, string slug, CancellationToken ct)
     {
         await using var conn = await db.OpenAsync(ct);

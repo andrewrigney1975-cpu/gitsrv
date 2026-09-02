@@ -19,6 +19,11 @@ Enklr.app connector, and an ops surface (audit log, `/metrics`, admin console, b
 [`CHANGELOG.md`](CHANGELOG.md), [`docs/INSTALL.md`](docs/INSTALL.md),
 [`docs/UPGRADING.md`](docs/UPGRADING.md), [`docs/SECURITY.md`](docs/SECURITY.md).
 
+**Repository import.** Create a repo from a public clone URL on another host (`POST
+/api/orgs/{slug}/repos/import`, "Import" on the org page): the source is SSRF-checked, then
+`RepoImportWorker` mirrors it with `git clone --bare` in the background and applies GitSrv's repo
+config, hooks and commit-graph. Progress and failures show on the repo page (migration 012).
+
 **Phase 11 — security, operability & release.** Org-scoped audit log with CSV export; per-IP rate
 limiting on login; SSRF guard on webhook/integration URLs (blocks loopback/private/metadata
 ranges); `GET /metrics` (Prometheus); an admin-console API (instance overview, user/org management,
