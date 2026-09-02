@@ -12,10 +12,15 @@ async function ctx(slug, repoSlug, refName) {
 
 export function renderRepoCommits(slug, repoSlug, refName, query) {
   return asyncView(async () => {
-    const { b, defaultBranch } = await ctx(slug, repoSlug, refName);
+    const { b, refs, defaultBranch } = await ctx(slug, repoSlug, refName);
     const ref = (refName && refName !== 'null') ? refName : (defaultBranch || 'HEAD');
     const path = new URLSearchParams(query || '').get('path') || '';
     const page = Number(new URLSearchParams(query || '').get('page') || 1);
+
+    if (refs.isEmpty) {
+      return shell(b, ref, 'commits', el('div', { class: 'card empty muted' },
+        'This repository is empty — no commits yet. Push some code to see its history.'));
+    }
 
     const res = await api.get(
       `/api/orgs/${slug}/repos/${repoSlug}/browse/commits/${enc(ref)}?page=${page}${path ? `&path=${enc(path)}` : ''}`);
@@ -88,7 +93,10 @@ function renderPatch(patch) {
 
 export function renderRepoGraph(slug, repoSlug) {
   return asyncView(async () => {
-    const { b } = await ctx(slug, repoSlug, null);
+    const { b, refs } = await ctx(slug, repoSlug, null);
+    if (refs.isEmpty) {
+      return shell(b, null, 'graph', el('div', { class: 'card empty muted' }, 'This repository is empty — nothing to graph yet.'));
+    }
     const commits = await api.get(`/api/orgs/${slug}/repos/${repoSlug}/browse/graph?limit=200`);
 
     if (!commits.length) return shell(b, null, 'graph', el('div', { class: 'card muted' }, 'No commits yet.'));
