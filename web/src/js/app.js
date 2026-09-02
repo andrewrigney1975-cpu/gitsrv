@@ -18,11 +18,16 @@ const userMenu = document.getElementById('user-menu');
 
 function mount(node) { clear(view).append(node); }
 
+// Build id from this module's own URL (index.html stamps ?v=… on the app.js tag). Appended to
+// every dynamic import so a single deploy invalidates the whole module graph.
+const BUILD = new URL(import.meta.url).searchParams.get('v') || '';
+const bust = (p) => (BUILD ? `${p}?v=${BUILD}` : p);
+
 // lazy(modulePath, exportName) -> (…args) that imports on demand and mounts the result
 function lazy(path, name) {
   return (...args) => {
     mount(el('div', { class: 'card muted', text: 'Loading…' }));
-    import(path)
+    import(bust(path))
       .then((m) => mount(m[name](...args)))
       .catch((err) => mount(el('div', { class: 'card' }, el('h1', {}, 'Failed to load'), el('p', { class: 'muted', text: err.message }))));
   };

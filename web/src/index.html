@@ -30,6 +30,7 @@
 
 <main id="view" aria-live="polite"></main>
 
-<script type="module" src="/js/app.js"></script>
+<!-- ?v is stamped at image build time so a deploy busts every module cache in one hop. -->
+<script type="module" src="/js/app.js?v=GITSRV_BUILD_ID"></script>
 </body>
 </html>
