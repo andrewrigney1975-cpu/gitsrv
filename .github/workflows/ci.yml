@@ -26,8 +26,12 @@ jobs:
           cp .env.example .env
           sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-test-password/' .env
           sed -i 's/^INTERNAL_TOKEN=.*/INTERNAL_TOKEN=ci-internal-token/' .env
+          sed -i "s|^JWT_SIGNING_KEY=.*|JWT_SIGNING_KEY=$(openssl rand -hex 32)|" .env
       - name: Build and start the stack
-        run: docker compose up -d --build
+        run: docker compose up -d --build --wait
+      - name: Dump logs if the stack failed
+        if: failure()
+        run: docker compose logs
       - name: Wait for health
         run: |
           for i in $(seq 1 60); do
